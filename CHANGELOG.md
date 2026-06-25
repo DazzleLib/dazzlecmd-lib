@@ -8,6 +8,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 This repository is the standalone home of the library, extracted from the dazzlecmd monorepo at v0.8.55 (2026-06-24). Commit history through 0.8.55 lives in the [dazzlecmd](https://github.com/DazzleTools/dazzlecmd) repository's git log (under `packages/dazzlecmd-lib/`); this CHANGELOG and all subsequent history continue here.
 
+## [0.9.2] - 2026-06-25
+
+Adds the `(VERB x LEVEL)` ContinuumSpace (SD-0 build-step 4), completing the B1 registry foundation. `VERB_SPACE` is the product of the verb axes (one binary/graded continuum each); `VERB_LEVEL_SPACE` composes it with `LEVEL_CONTINUUM` (the `tool < kit < aggregator` containment ladder). It mirrors `KIT_PRESENCE_SPACE` -- a PRODUCT (scale-safe, presence=None), so there is no cross-axis or cross-level "warmer/colder" navigation (activation is not warmer than membership; a tool is not warmer than an aggregator), and the aligned-only operations refuse on the product. The space is for help-grouping (the axis names are the headers, via `verb_axis_names()`) and structural validation, not cascade (that stays the opt-in SD-9 mechanism). +5 tests (45 in `test_verb_axis`; library suite at 207).
+
 ## [0.9.1] - 2026-06-25
 
 Adds the canonical `(axis, pole)` identity + the dispatch bridge for the verb x level homogenization (SD-0 build-step 3). `canonical_identity(axis, pole)` returns the level-agnostic `verb:<axis>:<pole>` tag the three addressing forms (`on`/`off`, the special name, the hoisted special) collapse to. `meta_tag_for(axis, pole, level)` returns the legacy per-level `_meta` dispatch tag (`<level>_<special>`, e.g. `kit_attach`) GENERATED from the registry, so the canonical identity and the running CLI's dispatch tag can never drift; it raises if the axis does not apply at the level (no silent wrong-level dispatch). The bridge keeps the layer boundary -- the lib names verbs and produces the dispatch tag, while the consumer's `MetaCommandRegistry` maps that tag to a handler. +6 tests (40 in `test_verb_axis`; library suite at 202). Additive, no consumer yet.

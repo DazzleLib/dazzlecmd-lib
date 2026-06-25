@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from typing import FrozenSet, Optional, Tuple
 
 from dazzle_lib.groupable import Groupable
-from dazzlecmd_lib.continuum import Continuum
+from dazzlecmd_lib.continuum import Continuum, ContinuumSpace
 
 # The universal grouped poles (H1): on -> warm, off -> cold.
 ON = "on"
@@ -215,3 +215,33 @@ def meta_tag_for(axis: str, pole: str, level: str) -> str:
             f"axis {axis!r} does not apply at level {level!r} "
             f"(applies_at={sorted(va.applies_at)})")
     return f"{level}_{va.verb_for(pole)}"
+
+
+# ---------------------------------------------------------------------------
+# The (VERB x LEVEL) ContinuumSpace (SD-0 build-step 4). Mirrors KIT_PRESENCE_SPACE
+# (dazzlecmd_lib.contexts): a PRODUCT (compose, presence=None) -> scale-safe, no
+# cross-axis or cross-level "warmer/colder" navigation. Used for help-grouping
+# (the axis names are the help headers) + structural validation, NOT for cascade
+# (that is the opt-in SD-9 mechanism). PRODUCT, not aligned: activation and
+# membership are not "warmer/colder" than each other, and tool/kit/aggregator are
+# not cascade-ordered here either.
+# ---------------------------------------------------------------------------
+
+# The containment level ladder as an ordered Continuum (aggregator = the
+# innermost-public capstone at neutral 0; tool the coldest). MVP {tool,kit,
+# aggregator}; SD-6 (inward fiber) / SD-7 (upper levels) extend it.
+LEVEL_CONTINUUM = Continuum(
+    "level", ranks={"tool": -2, "kit": -1, "aggregator": 0})
+
+# One axis per VerbAxis -- the VERB product (each axis's binary/graded continuum).
+VERB_SPACE = ContinuumSpace.compose(
+    "verb", {ax.axis: ax.continuum() for ax in VERB_AXES})
+
+# (VERB x LEVEL): the verb product composed with the level continuum.
+VERB_LEVEL_SPACE = ContinuumSpace.compose(
+    "verb_level", {"verb": VERB_SPACE, "level": LEVEL_CONTINUUM})
+
+
+def verb_axis_names() -> Tuple[str, ...]:
+    """The verb-axis names in registry order -- the help-grouping headers."""
+    return tuple(ax.axis for ax in VERB_AXES)

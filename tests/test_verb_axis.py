@@ -36,6 +36,10 @@ from dazzlecmd_lib.verb_axis import (
     resolve_special,
     canonical_identity,
     meta_tag_for,
+    VERB_SPACE,
+    VERB_LEVEL_SPACE,
+    LEVEL_CONTINUUM,
+    verb_axis_names,
 )
 
 
@@ -255,3 +259,43 @@ class TestCanonicalIdentityAndMetaTag:
                 continue
             for pole in (WARM, COLD):
                 assert meta_tag_for(va.axis, pole, KIT) == f"kit_{va.verb_for(pole)}"
+
+
+class TestVerbLevelSpace:
+    """The ``(VERB x LEVEL)`` ContinuumSpace (SD-0 build-step 4) -- a scale-safe
+    PRODUCT mirroring ``KIT_PRESENCE_SPACE``. AC0-5: composes + normal_forms
+    without error; cross-axis/cross-level "warmer/colder" nav is refused."""
+
+    def test_verb_space_has_an_axis_per_verb(self):
+        assert set(VERB_SPACE.leaves()) == set(verb_axis_names())
+        assert verb_axis_names() == (
+            "activation", "loading", "membership", "projection")
+
+    def test_verb_level_space_composes_and_normal_forms(self):
+        nf = VERB_LEVEL_SPACE.normal_form()   # must not raise (AC0-5)
+        assert nf is not None
+        leaves = set(VERB_LEVEL_SPACE.leaves())
+        assert "level" in leaves
+        assert any(name.endswith("activation") for name in leaves)
+
+    def test_space_is_a_product_not_aligned(self):
+        # PRODUCT (presence=None): no cross-axis/cross-level total order.
+        assert VERB_SPACE.is_aligned is False
+        assert VERB_LEVEL_SPACE.is_aligned is False
+
+    def test_cross_axis_navigation_is_refused(self):
+        # Scale-safety: aligned-only ops raise on the product (no "is loading
+        # warmer than membership?", no "is tool warmer than aggregator?").
+        for op, args in [("presence_of", ("kit",)), ("spectrum", ("kit",)),
+                         ("slice", ("kit",)), ("cascade_to_neutral", ())]:
+            fn = getattr(VERB_LEVEL_SPACE, op, None)
+            if fn is None:
+                continue
+            with pytest.raises(Exception):
+                fn(*args)
+
+    def test_level_continuum_is_the_containment_ladder(self):
+        assert LEVEL_CONTINUUM.levels() == ("tool", "kit", "aggregator")
+        # aggregator is the warm (neutral 0) capstone; tool the coldest.
+        assert LEVEL_CONTINUUM.rank("aggregator") == 0
+        assert LEVEL_CONTINUUM.rank("tool") < LEVEL_CONTINUUM.rank("kit") < 0

@@ -35,6 +35,12 @@ from dazzlecmd_lib.registry import RunnerRegistry
 from dazzlecmd_lib.config import ConfigManager
 from dazzlecmd_lib.meta_command_registry import MetaCommandRegistry
 from dazzlecmd_lib.resolution_context import ResolutionContext
+from dazzlecmd_lib.target_resolution import (
+    LEVELS,
+    AmbiguousLevelError,
+    TargetResolution,
+    _READ_PRECEDENCE,
+)
 
 
 class FQCNCollisionError(Exception):
@@ -1742,6 +1748,106 @@ class AggregatorEngine:
         on miss.
         """
         return self.resolve_command(name)
+
+    def _find_kit_by_name(self, name):
+        """The kit whose ``kit_name`` / ``name`` / ``short_name`` equals ``name``,
+        else ``None``. The kit tier of :meth:`resolve_target` (kits aren't in the
+        tool ``FQCNIndex`` -- they're engine-level data)."""
+        for k in self.kits:
+            if name in (
+                getattr(k, "kit_name", None),
+                getattr(k, "name", None),
+                getattr(k, "short_name", None),
+            ):
+                return k
+        return None
+
+    def _find_aggregator_by_name(self, name):
+        """This aggregator if ``name`` is its own name (``self.name``), else
+        ``None``. The aggregator tier of :meth:`resolve_target`. This engine is
+        the only named aggregator it knows today; nested/peer aggregators are a
+        DWP-gated level (SD-7), not resolved here yet."""
+        if name and name == getattr(self, "name", None):
+            return self
+        return None
+
+    def resolve_target(self, name, *, applies_at=frozenset(LEVELS),
+                       as_level=None, mutating=False):
+        """Resolve a bare ``name`` to a level-tagged entity (SD-1, the B4 keystone).
+
+        Tries each level in ``applies_at`` -- tool via :meth:`resolve_command`
+        (so the tool tier reuses ``FQCNIndex.resolve`` with the user's favorites
+        and kit precedence; no parallel resolver), kit via
+        :meth:`_find_kit_by_name`, aggregator via :meth:`_find_aggregator_by_name`
+        -- then applies the P-2 collision policy.
+
+        Args:
+            name: the user-typed target (short name or FQCN for a tool; a kit's
+                name; the aggregator's name).
+            applies_at: the levels this verb is meaningful at (from the verb
+                registry's ``applies_at``). A level outside this set is never a
+                candidate, so ``applies_at={kit}`` will NOT act on a same-named
+                tool (AC1-2).
+            as_level: an explicit ``--as`` pin; only that level is considered.
+                Always wins over precedence (AC1-3).
+            mutating: True for a verb that changes state. A bare ambiguous name
+                with a mutating verb raises :class:`AmbiguousLevelError` rather
+                than guessing (AC1-6).
+
+        Returns:
+            a :class:`TargetResolution`, or ``None`` when nothing matches
+            (the caller renders the "no tool/kit/aggregator named ..." message,
+            AC1-7).
+
+        Raises:
+            AmbiguousLevelError: bare ambiguous name + mutating verb (AC1-6).
+        """
+        want = set(applies_at)
+        if as_level is not None:
+            want &= {as_level}            # explicit pin: only that level (AC1-3)
+        else:
+            # A name FAVORITE pins the tool level -- the user has declared "when I
+            # say this name I mean that tool" (AC1-4, reusing the favorite config).
+            favorites = self._get_config_dict("favorites") or {}
+            if name in favorites and "tool" in want:
+                want &= {"tool"}
+
+        found = []   # list of (level, entity, tool_context)
+        if "tool" in want:
+            proj, ctx = self.resolve_command(name)      # reuse FQCNIndex (AC1-8)
+            if proj is not None:
+                found.append(("tool", proj, ctx))
+        if "kit" in want:
+            kit = self._find_kit_by_name(name)
+            if kit is not None:
+                found.append(("kit", kit, None))
+        if "aggregator" in want:
+            agg = self._find_aggregator_by_name(name)
+            if agg is not None:
+                found.append(("aggregator", agg, None))
+
+        if not found:
+            return None
+
+        if len(found) == 1:
+            level, entity, ctx = found[0]
+            return TargetResolution(entity, level, tool_context=ctx)
+
+        # >1 match -- a genuine cross-level collision (P-2).
+        if mutating and as_level is None:
+            raise AmbiguousLevelError(
+                name, [(lvl, ent) for lvl, ent, _ in found], command=self.command)
+
+        found.sort(key=lambda t: _READ_PRECEDENCE[t[0]])
+        level, entity, ctx = found[0]
+        others = ", ".join(f"a {lvl} named '{name}'" for lvl, _, _ in found[1:])
+        note = (
+            f"{self.command}: '{name}' matches more than one level; "
+            f"using the {level}. Also: {others}. Use --as <level> to choose."
+        )
+        return TargetResolution(
+            entity, level, notification=note,
+            candidates=[(lvl, ent) for lvl, ent, _ in found], tool_context=ctx)
 
     def run(self, argv=None):
         """Run the aggregator: discover, parse, dispatch.

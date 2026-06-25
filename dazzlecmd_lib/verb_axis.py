@@ -170,3 +170,48 @@ def resolve_special(name: str) -> Optional[Tuple[VerbAxis, str]]:
         if name == va.cold:
             return (va, COLD)
     return None
+
+
+# ---------------------------------------------------------------------------
+# The canonical identity + the dispatch bridge (SD-0 build-step 3 / T-1).
+#
+# Every ``(axis, pole, level)`` has ONE level-agnostic canonical identity
+# ``verb:<axis>:<pole>`` -- the tag the three addressing forms collapse to. The
+# *legacy* per-level ``_meta`` tag (``kit_attach``, ...) the running CLI already
+# dispatches is GENERATED from the registry (``<level>_<special>``), so the
+# canonical identity and the dispatch tag can never drift. ``meta_tag_for`` is the
+# (axis,pole,level)->dispatch-tag half of SD-0's ``handler_for``; ``MetaCommandRegistry``
+# (in the CLI) is the tag->callable half. Keeping the bridge here (not the callables)
+# holds the layer boundary -- the lib names verbs, the CLI owns handlers (H8/AC0-7).
+# ---------------------------------------------------------------------------
+
+def canonical_identity(axis: str, pole: str) -> str:
+    """The level-agnostic canonical dispatch identity ``verb:<axis>:<pole>``.
+
+    The one identity ``dz <axis> on|off``, ``dz <axis> <special>`` and the hoisted
+    ``dz <special>`` all collapse to (SD-0 T-1). Raises ``KeyError`` for an unknown
+    axis or a bad pole.
+    """
+    va = axis_by_name(axis)
+    if va is None:
+        raise KeyError(f"no verb-axis named {axis!r}")
+    return va.canonical(pole)
+
+
+def meta_tag_for(axis: str, pole: str, level: str) -> str:
+    """The legacy ``_meta`` dispatch tag a canonical ``(axis, pole, level)`` maps to.
+
+    The GENERATED synonym (``<level>_<special>`` -- e.g. ``kit_attach``), derived
+    from the registry so it never drifts from the canonical identity. Raises
+    ``KeyError`` for an unknown axis; raises ``ValueError`` if the axis does not
+    apply at ``level`` (AC0-4 -- a clear error, never a silent wrong-level
+    dispatch). The returned tag is what ``MetaCommandRegistry.dispatch`` routes.
+    """
+    va = axis_by_name(axis)
+    if va is None:
+        raise KeyError(f"no verb-axis named {axis!r}")
+    if level not in va.applies_at:
+        raise ValueError(
+            f"axis {axis!r} does not apply at level {level!r} "
+            f"(applies_at={sorted(va.applies_at)})")
+    return f"{level}_{va.verb_for(pole)}"

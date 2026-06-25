@@ -34,6 +34,8 @@ from dazzlecmd_lib.verb_axis import (
     COUPLING_INDEPENDENT,
     axis_by_name,
     resolve_special,
+    canonical_identity,
+    meta_tag_for,
 )
 
 
@@ -212,3 +214,44 @@ class TestResolveSpecial:
     def test_axis_by_name(self):
         assert axis_by_name("loading").warm == "attach"
         assert axis_by_name("nonexistent") is None
+
+
+class TestCanonicalIdentityAndMetaTag:
+    """The canonical ``verb:<axis>:<pole>`` identity + the generated ``_meta``
+    dispatch tag bridge (SD-0 build-step 3)."""
+
+    def test_canonical_identity_is_axis_pole(self):
+        assert canonical_identity("loading", WARM) == "verb:loading:warm"
+        assert canonical_identity("activation", COLD) == "verb:activation:cold"
+
+    def test_canonical_identity_unknown_axis_raises(self):
+        with pytest.raises(KeyError):
+            canonical_identity("teleport", WARM)
+
+    def test_meta_tag_reproduces_todays_kit_tags(self):
+        # The generated <level>_<special> tag == the running CLI's _meta tags.
+        assert meta_tag_for("activation", WARM, KIT) == "kit_enable"
+        assert meta_tag_for("activation", COLD, KIT) == "kit_disable"
+        assert meta_tag_for("loading", WARM, KIT) == "kit_attach"
+        assert meta_tag_for("loading", COLD, KIT) == "kit_detach"
+        assert meta_tag_for("membership", WARM, KIT) == "kit_add"
+        assert meta_tag_for("membership", COLD, KIT) == "kit_remove"
+
+    def test_meta_tag_wrong_level_raises(self):
+        # loading.applies_at == {kit}; a tool-level loading tag is an error (AC0-4).
+        with pytest.raises(ValueError):
+            meta_tag_for("loading", WARM, TOOL)
+        with pytest.raises(ValueError):
+            meta_tag_for("activation", WARM, AGGREGATOR)
+
+    def test_meta_tag_unknown_axis_raises(self):
+        with pytest.raises(KeyError):
+            meta_tag_for("teleport", WARM, KIT)
+
+    def test_meta_tag_agrees_with_verb_for_pole(self):
+        # The tag's special == the axis's verb for that pole, at every kit axis.
+        for va in VERB_AXES:
+            if KIT not in va.applies_at:
+                continue
+            for pole in (WARM, COLD):
+                assert meta_tag_for(va.axis, pole, KIT) == f"kit_{va.verb_for(pole)}"

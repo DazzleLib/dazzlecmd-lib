@@ -51,10 +51,14 @@ class TestSingleLevel:
         assert r.level == "kit"
         assert (r.entity.kit_name or r.entity.name) == "mykit"
 
-    def test_aggregator_self(self, tmp_path):
-        eng = _engine(tmp_path)
-        r = eng.resolve_target("dz")
-        assert r.level == "aggregator" and r.entity is eng
+    def test_aggregator_by_name_and_command(self, tmp_path):
+        # The aggregator answers to BOTH its name and the command users invoke.
+        eng = AggregatorEngine(
+            name="dazzlecmd", command="dz", config_dir=str(tmp_path))
+        by_name = eng.resolve_target("dazzlecmd")
+        by_cmd = eng.resolve_target("dz")
+        assert by_name.level == "aggregator" and by_name.entity is eng
+        assert by_cmd.level == "aggregator" and by_cmd.entity is eng
 
     def test_unknown_returns_none(self, tmp_path):           # AC1-7
         eng = _engine(tmp_path, tools=[_tool("x")])

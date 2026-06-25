@@ -1763,11 +1763,14 @@ class AggregatorEngine:
         return None
 
     def _find_aggregator_by_name(self, name):
-        """This aggregator if ``name`` is its own name (``self.name``), else
-        ``None``. The aggregator tier of :meth:`resolve_target`. This engine is
-        the only named aggregator it knows today; nested/peer aggregators are a
-        DWP-gated level (SD-7), not resolved here yet."""
-        if name and name == getattr(self, "name", None):
+        """This aggregator if ``name`` is its own name (``self.name``, e.g.
+        ``dazzlecmd``) OR its command (``self.command``, e.g. ``dz``) -- users
+        address the aggregator by the thing they invoke. The aggregator tier of
+        :meth:`resolve_target`. This engine is the only named aggregator it knows
+        today; nested/peer aggregators are a DWP-gated level (SD-7), not here."""
+        if name and name in (
+            getattr(self, "name", None), getattr(self, "command", None)
+        ):
             return self
         return None
 

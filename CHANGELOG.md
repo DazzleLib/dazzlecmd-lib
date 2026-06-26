@@ -8,6 +8,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 This repository is the standalone home of the library, extracted from the dazzlecmd monorepo at v0.8.55 (2026-06-24). Commit history through 0.8.55 lives in the [dazzlecmd](https://github.com/DazzleTools/dazzlecmd) repository's git log (under `packages/dazzlecmd-lib/`); this CHANGELOG and all subsequent history continue here.
 
+## [0.9.5] - 2026-06-26
+
+Adds `dazzlecmd_lib.interrogation` -- the single read surface for entity cards (design SD-A, dazzlecmd's 0.11.x arc). `interrogate(entity, engine, *, level, facets=None)` returns an ordered list of facet sections (identity, state, ...) and `render_interrogation(...)` prints them as an aligned card or `--json`; one function powers every level's read, and a reduction (a single facet) is the `facets=` argument rather than a second code path. The `state` facet is the read-projection of the verb-axis registry: `axis_state(kit, engine)` reads the rung the kit currently sits on for each `VERB_AXES` axis, so a new `VerbAxis` surfaces in every read for free. This slice covers the kit and aggregator levels -- the dazzlecmd consumer's kit/aggregator cards now route through this surface with output unchanged; the tool level and the consolidation of the separate `status` verb follow in the next slices. Additive -- new module, nothing removed. +15 tests (`test_interrogation`, including the `facets=` reduction path); library suite at 234.
+
 ## [0.9.4] - 2026-06-25
 
 Refines the `resolve_target` aggregator tier (SD-1, found wiring the dazzlecmd consumer): the aggregator now answers to BOTH its name (`self.name`, e.g. `dazzlecmd`) AND its command (`self.command`, e.g. `dz`) -- users address the aggregator by the thing they invoke, so `dz info dz` resolves to the aggregator, not "not found". +1 assertion in `test_target_resolution` (still 12 tests).

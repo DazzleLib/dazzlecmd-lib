@@ -3,7 +3,7 @@
 Covers the validated shapes from the /collaborate3 probe plus the
 Phase-0 surface: construction, discriminated-union discrimination, the
 backward-compat shim, round-trip fidelity, set-once canonical FQCN (C1),
-the Groupable capability + MRO, and type detection / hard-fail.
+the GroupingCapable capability + MRO, and type detection / hard-fail.
 """
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from dazzlecmd_lib.entity import (
     AnyDazzleEntity,
     DazzleEntity,
     ENTITY_ADAPTER,
-    Groupable,
+    GroupingCapable,
     Kit,
     Tool,
     build_entity,
@@ -106,19 +106,32 @@ class TestSetOnceFQCN:
             t.fqcn = "core:hacked"
 
 
-class TestGroupable:
-    def test_entity_is_groupable(self):
+class TestGroupingCapable:
+    def test_entity_is_grouping_capable(self):
         t = Tool.model_validate(_tool_manifest())
-        assert isinstance(t, Groupable)
+        assert isinstance(t, GroupingCapable)
 
     def test_mro_is_clean(self):
-        # Groupable before BaseModel; entity constructs without MRO conflict
-        assert Groupable in DazzleEntity.__mro__
-        assert DazzleEntity.__mro__.index(Groupable) < DazzleEntity.__mro__.index(__import__("pydantic").BaseModel)
+        # GroupingCapable before BaseModel; entity constructs without MRO conflict
+        assert GroupingCapable in DazzleEntity.__mro__
+        assert DazzleEntity.__mro__.index(GroupingCapable) < DazzleEntity.__mro__.index(__import__("pydantic").BaseModel)
+
+    def test_groupable_name_decollided_from_the_bedrock_value(self):
+        # AC-1: the name `Groupable` now belongs ONLY to dazzle_lib's bedrock
+        # VALUE; the entity capability is the distinct `GroupingCapable`. The two
+        # roles no longer share a name across the libs.
+        from dazzle_lib import Groupable as ValueGroupable
+        # the bedrock value is the {minus,plus,meaning} dual with the T1 reductions
+        assert "minus" in getattr(ValueGroupable, "__dataclass_fields__", {})
+        assert hasattr(ValueGroupable, "unify")   # the value's reduction (a method)
+        import dazzlecmd_lib.entity as ent
+        assert hasattr(ent, "GroupingCapable")
+        assert not hasattr(ent, "Groupable")   # the collision is gone here
+        assert GroupingCapable in DazzleEntity.__mro__
 
     def test_all_five_verbs_live_with_real_signatures(self):
         t = Tool.model_validate(_tool_manifest())
-        # All five Groupable verbs are live (#84) -- each delegates to a context,
+        # All five GroupingCapable verbs are live (#84) -- each delegates to a context,
         # so called without one they raise TypeError (a live signature), not
         # NotImplementedError. group/ungroup are live for the reversible in-tree
         # regime; graduation is refused at the criticality boundary (not

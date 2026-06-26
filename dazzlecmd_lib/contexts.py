@@ -20,7 +20,7 @@ Design (see the #84 behavioral-phase DWP + its 2026-06-09 hole-review addendum):
   ``FQCNIndex``, mode state on the filesystem) live outside the entity. So a
   verb takes an explicit ``context`` -- a :class:`RebindContext` -- that carries
   both the handle AND the identity the verb itself can't (e.g. WHICH alias).
-- ``Groupable.rebind`` is a thin delegate: ``return context.apply(self, target)``.
+- ``GroupingCapable.rebind`` is a thin delegate: ``return context.apply(self, target)``.
   Each rebind sub-kind is a new context impl rather than a branch inside the
   verb -- this protocol IS the generalizable seam the PoC validates.
 - C2 (the restorability invariant) is modeled as a per-transition
@@ -61,6 +61,7 @@ from dazzle_lib.transitions import (  # noqa: F401
     Receipt,
     TransitionContext,
     TransitionError,
+    VerbContext,
 )
 
 RebindError = TransitionError
@@ -105,11 +106,17 @@ class RebindReceipt:
     verb: str = "rebind"
 
 
-class RebindContext(Protocol):
+class RebindContext(VerbContext, Protocol):
     """The context a ``rebind`` operates within (the verb is not entity-local).
 
+    Adheres to the bedrock :class:`dazzle_lib.VerbContext` capability contract
+    (apply/undo over an opaque entity), narrowed here to the rebind receipt type
+    -- "bedrock declares the role, the consumer closes the spec". The concrete
+    contexts (Alias/Visibility/Containment/Projection/KitMembership) satisfy that
+    bedrock contract directly (each carries ``apply`` + ``undo``).
+
     Each rebind sub-kind implements this protocol, encapsulating its mechanism
-    and carrying the identity the verb itself lacks. ``Groupable.rebind``
+    and carrying the identity the verb itself lacks. ``GroupingCapable.rebind``
     delegates to ``context.apply(self, target)``; ``undo`` inverts a receipt so
     callers (and the ``assert_round_trip`` harness) need not track the new owner.
     """
@@ -964,7 +971,7 @@ class ContainmentContext:
 # ContainmentContext above is TOOL-in-kit + IN-MEMORY (a Kit's `.tools` list, rebuilt
 # each invocation). Kit-in-aggregator membership is a DIFFERENT substrate -- the
 # `kits/*.kit.json` registry FILES -- and it PERSISTS (a deregistered kit's entry is
-# gone from disk, no in-memory rebuild). So this is a SIBLING context (same Groupable
+# gone from disk, no in-memory rebuild). So this is a SIBLING context (same GroupingCapable
 # group/ungroup verbs, the generic executor, a C3 refusal), NOT a subclass: it does
 # not import or extend ContainmentContext's `.tools` model. The strong `remove`
 # (deregister + safedel content + deactivate) and the pointer `detach` COMPOSE onto

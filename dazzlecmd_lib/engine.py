@@ -226,7 +226,7 @@ class FQCNIndex:
 
     def repoint_alias(self, alias_fqcn, new_canonical_fqcn, source="rebind"):
         """Repoint an existing alias to a different canonical -- the alias
-        ``rebind`` primitive (the behavioral-phase ``Groupable.rebind`` calls
+        ``rebind`` primitive (the behavioral-phase ``GroupingCapable.rebind`` calls
         this via ``AliasRebindContext``; nothing pokes the dicts raw).
 
         ``insert_alias`` deliberately REFUSES a different-target remap (first
@@ -1511,7 +1511,7 @@ class AggregatorEngine:
             if home in self.fqcn_index.canonical_index:
                 continue
             # GROUP (overlay): the surfaced canonical project gains its home name
-            # as a projection alias. Routed through the Groupable verb so the
+            # as a projection alias. Routed through the GroupingCapable group verb so the
             # PROJECTION-axis {group, ungroup} primitive has ONE mechanism
             # (ProjectionContext) and the conserved invariant (canonical_fqcn) is
             # pinned where aliases are created (#180).

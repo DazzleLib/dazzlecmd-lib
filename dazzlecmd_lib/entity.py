@@ -8,11 +8,13 @@ Locked model (synthesis DWP 2026-06-07__04-24-42; validated via a 5-round
 /collaborate3 with Gemini 2.5 Pro + the probes in
 ``tests/one-offs/dazzleentity_probes.py``):
 
-- ``Groupable`` -- the UNIVERSAL grouping/ungrouping capability (mixin). The
-  five verbs (GROUP / UNGROUP / HIDE / EXPOSE / REBIND) + the canonical-identity
-  contract (C1/C2/C3). Mixed into the entity base so grouping/ungrouping is
-  universal WITHOUT forcing one inheritance root.
-- ``DazzleEntity(Groupable, BaseModel)`` -- base for every ON-TREE co-level
+- ``GroupingCapable`` -- the UNIVERSAL grouping/ungrouping capability (mixin).
+  The five verbs (GROUP / UNGROUP / HIDE / EXPOSE / REBIND) + the
+  canonical-identity contract (C1/C2/C3). Mixed into the entity base so
+  grouping/ungrouping is universal WITHOUT forcing one inheritance root.
+  (Named ``Groupable`` before 0.9.6; renamed to free that name for dazzle_lib's
+  bedrock value.)
+- ``DazzleEntity(GroupingCapable, BaseModel)`` -- base for every ON-TREE co-level
   occupant (anything reached via the ``:`` hierarchy axis): tool / kit /
   aggregator now, property / environment later (the discriminated union is
   OPEN to additive members).
@@ -55,10 +57,15 @@ class AmbiguousEntityTypeError(Exception):
 
 
 # ---------------------------------------------------------------------------
-# Groupable -- the universal {grouping, ungrouping} capability
+# GroupingCapable -- the universal {grouping, ungrouping} capability
 # ---------------------------------------------------------------------------
-class Groupable:
+class GroupingCapable:
     """Mixin declaring the grouping/ungrouping capability ("the bones").
+
+    Renamed from ``Groupable`` (0.9.6) to de-collide with dazzle_lib's bedrock
+    VALUE :class:`dazzle_lib.Groupable` (the ``{minus, plus, meaning}`` dual):
+    the value and this entity capability are distinct roles that used to share a
+    name. The name ``Groupable`` now means exactly the bedrock value, everywhere.
 
     The five verbs of the boundary-formation primitive
     ({grouping, ungrouping} = {P, ¬P}) plus the canonical-identity contract:
@@ -121,7 +128,7 @@ class Groupable:
         Dispatch always survives (C2 = ``canonical_dispatch``); shadowing a
         constitutional (``always_active``) item raises ``CriticalityBoundaryError``
         (C3: constitutional items may be hidden, never removed). Returns a
-        ``VisibilityReceipt``. The third live Groupable verb."""
+        ``VisibilityReceipt``. The third live GroupingCapable verb."""
         if context is None:
             raise TypeError(
                 "hide(to=..., *, context=...) requires a VisibilityContext"
@@ -141,10 +148,10 @@ class Groupable:
     def rebind(self, target: Any, *, context: Any) -> Any:
         """REBIND: change this entity's coupling/resolution to ``target`` within
         ``context``, WITHOUT changing its canonical identity (C1 ``fqcn`` is
-        unchanged). The first live Groupable verb.
+        unchanged). The first live GroupingCapable verb.
 
         The verb is entity-local in spirit (the same-bones thesis: entities ARE
-        Groupable), but the mechanism is not -- alias routing lives on the
+        grouping-capable), but the mechanism is not -- alias routing lives on the
         ``FQCNIndex``, mode state on the filesystem -- so ``context`` (a
         ``dazzlecmd_lib.contexts.RebindContext``: ``AliasRebindContext`` /
         ``ModeRebindContext``) carries the handle plus the identity the verb
@@ -163,7 +170,7 @@ class Groupable:
 # ---------------------------------------------------------------------------
 # DazzleEntity -- base for all on-tree co-level occupants
 # ---------------------------------------------------------------------------
-class DazzleEntity(Groupable, BaseModel):
+class DazzleEntity(GroupingCapable, BaseModel):
     """Typed base for any FQCN-addressable co-level occupant.
 
     Carries the stable manifest fields as typed attributes; everything else
@@ -455,7 +462,7 @@ def reserve_field_axis(name: str = "", namespace: str = "") -> None:
 # Public API surface -- frozen until 1.0 (Gate I). See the lib README.
 __all__ = [
     "AmbiguousEntityTypeError",
-    "Groupable",
+    "GroupingCapable",
     "DazzleEntity",
     "Tool",
     "Kit",

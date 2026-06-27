@@ -8,6 +8,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 This repository is the standalone home of the library, extracted from the dazzlecmd monorepo at v0.8.55 (2026-06-24). Commit history through 0.8.55 lives in the [dazzlecmd](https://github.com/DazzleTools/dazzlecmd) repository's git log (under `packages/dazzlecmd-lib/`); this CHANGELOG and all subsequent history continue here.
 
+## [0.9.13] - 2026-06-26
+
+SD-E slices 2-6 (the render-fold decomposition, complete). Moves every `render_*` function -- `render_list` + `build_list_entries`, `render_info` + the runtime-dispatch helpers, the `render_kit_list` cluster, `render_tree`/`render_version`/`render_setup_listing` -- **verbatim** from `default_meta_commands.py` into `rendering.py` (the presentation layer), with `default_meta_commands` re-exporting every public name. `default_meta_commands.py` shrinks from ~2360 to **445** lines (now just parser-factories + handlers + registry); `rendering.py` is the ~1935-line presentation layer; `interrogation.py` stays the facet core. Import direction one-way: `interrogation <- rendering <- default_meta_commands`. A pure relocation -- behaviour byte-identical (the goldens are unchanged, NOT re-blessed). +4 re-export pin tests (`test_dmc_reexports`); library suite 255.
+
 ## [0.9.12] - 2026-06-26
 
 SD-E slice 1 (the render-fold decomposition, scaffold). Introduces `rendering.py` -- the read-surface PRESENTATION layer -- and moves the shared display utils + layout constants (`_term_width`, `_wrap_description`, `_print_legend_entry`, `_constitutional_entry`, `MIN_DESC_WIDTH`/`TERM_SIZE_FALLBACK`/`KIT_NAME_COL`/`SUMMARY_INDENT`) there **verbatim** from `default_meta_commands.py`, which re-exports every name so importers resolve unchanged. A pure relocation -- behaviour byte-identical (the goldens are unchanged, NOT re-blessed). Import direction stays one-way: `interrogation <- rendering <- default_meta_commands`. The `render_*` functions move in the following slices.

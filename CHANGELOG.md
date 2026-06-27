@@ -8,6 +8,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 This repository is the standalone home of the library, extracted from the dazzlecmd monorepo at v0.8.55 (2026-06-24). Commit history through 0.8.55 lives in the [dazzlecmd](https://github.com/DazzleTools/dazzlecmd) repository's git log (under `packages/dazzlecmd-lib/`); this CHANGELOG and all subsequent history continue here.
 
+## [0.9.12] - 2026-06-26
+
+SD-E slice 1 (the render-fold decomposition, scaffold). Introduces `rendering.py` -- the read-surface PRESENTATION layer -- and moves the shared display utils + layout constants (`_term_width`, `_wrap_description`, `_print_legend_entry`, `_constitutional_entry`, `MIN_DESC_WIDTH`/`TERM_SIZE_FALLBACK`/`KIT_NAME_COL`/`SUMMARY_INDENT`) there **verbatim** from `default_meta_commands.py`, which re-exports every name so importers resolve unchanged. A pure relocation -- behaviour byte-identical (the goldens are unchanged, NOT re-blessed). Import direction stays one-way: `interrogation <- rendering <- default_meta_commands`. The `render_*` functions move in the following slices.
+
 ## [0.9.11] - 2026-06-26
 
 B4-mutate (loading axis). Reserves `attach` and `detach` in `DEFAULT_RESERVED_COMMANDS` -- the loading axis's warm/cold poles, hoisted to the bare `dz attach <kit>` / `dz detach <kit>` form (the loading analog of 0.9.10's `enable`/`disable`). Same generic verb x level dispatch path, same reserve-globally / opt-in-via-`enabled_meta_commands` rule.

@@ -1313,9 +1313,6 @@ def kit_parser_factory(subparsers):
     )
     kit_list_p.set_defaults(_meta="kit_list")
 
-    kit_status_p = sub.add_parser("status", help="Show active kits")
-    kit_status_p.set_defaults(_meta="kit_status")
-
     # Bare `kit` with no sub is treated as `kit list`
     p.set_defaults(_meta="kit_list")
 
@@ -1685,42 +1682,11 @@ def _render_kit_list_legacy(args, kits, projects) -> int:
     return 0
 
 
-def render_kit_status(active_kits) -> int:
-    """Show a summary of the active kits.
-
-    ``active_kits`` is the already-resolved active set (e.g.
-    ``engine.active_kits``, which honors ``active_kits`` / ``disabled_kits``
-    config); every kit passed is shown. The resolution lives in the handler
-    so this stays a pure renderer.
-    """
-    _use_color = _colors.should_use_color()
-
-    def _bold(s):
-        return _colors.colorize(s, _colors.BOLD) if _use_color else s
-
-    active = list(active_kits)
-    print(f"Active kits: {len(active)}")
-    for kit in active:
-        name = kit.kit_name or kit.name
-        tool_count = len(kit.tools or [])
-        print(f"  {_bold(name)}: {tool_count} tool(s)")
-    return 0
-
-
 def kit_list_handler(args, engine, projects, kits, project_root) -> int:
     # Pass the engine through (the renderer-contract convention): unlocks
     # config-aware status, #48 drill-in columns, and the virtual-kit alias
     # drill-in for every consumer.
     return render_kit_list(args, kits, projects, engine=engine)
-
-
-def kit_status_handler(args, engine, projects, kits, project_root) -> int:
-    # Use the engine's config-resolved active set (active_kits/disabled_kits),
-    # matching `kit list`; fall back to all discovered kits if unavailable.
-    active = getattr(engine, "active_kits", None)
-    if active is None:
-        active = kits
-    return render_kit_status(active)
 
 
 # ---------------------------------------------------------------------------
@@ -2286,12 +2252,11 @@ _DEFAULTS = {
     "setup": (setup_parser_factory, setup_handler),
 }
 
-# Sub-meta handlers (kit has kit_list and kit_status sub-commands).
-# These are separately registered so the engine's dispatch can route
-# kit_status -> kit_status_handler.
+# Sub-meta handlers (kit has the kit_list sub-command).
+# Separately registered so the engine's dispatch can route
+# kit_list -> kit_list_handler.
 _SUB_HANDLERS = {
     "kit_list": kit_list_handler,
-    "kit_status": kit_status_handler,
 }
 
 
@@ -2302,7 +2267,7 @@ def register_all(registry) -> None:
     ``include_default_meta_commands=True`` (the default).
 
     This registers the top-level commands (list, info, kit, version,
-    tree, setup). Nested meta tags (kit_list, kit_status) are registered
+    tree, setup). Nested meta tags (kit_list) are registered
     via ``_register_sub_handlers`` so the registry's dispatch can route
     them.
     """
@@ -2343,11 +2308,11 @@ def register_selected(
 
 
 def _register_sub_handlers(registry) -> None:
-    """Register the sub-meta handlers (kit_list, kit_status).
+    """Register the sub-meta handlers (kit_list).
 
     These don't have parser factories (the kit parser factory builds
     the nested subparsers); they only need dispatch-side routing entries
-    so ``args._meta = "kit_status"`` resolves to the right handler.
+    so ``args._meta = "kit_list"`` resolves to the right handler.
     """
     # A minimal "parser factory" that does nothing — the kit parser
     # already built the subparser when kit was registered.

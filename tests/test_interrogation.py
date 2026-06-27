@@ -34,6 +34,15 @@ def _engine(*, kits=(), config=None):
         kits=list(kits), _get_user_config=lambda: (config or {}))
 
 
+def _tool(name="widget", *, directory=None, version="2.1", fqcn="core:widget",
+          namespace="core"):
+    return types.SimpleNamespace(
+        name=name, fqcn=fqcn, namespace=namespace, kit_import_name=None,
+        version=version, description="A demo tool.", platform=None,
+        language="python", taxonomy={"category": "util", "tags": ["a", "b"]},
+        directory=directory)
+
+
 # --- axis_state: the state facet = the read-projection of VERB_AXES ---------
 
 
@@ -129,6 +138,58 @@ class TestInterrogateAggregator:
         eng = _engine()
         with pytest.raises(ValueError):
             interrogate(eng, eng, level="planet")
+
+
+class TestInterrogateTool:
+    def test_full_view_has_identity_then_state(self, tmp_path):
+        tool = _tool("widget")
+        interro = interrogate(
+            tool, _engine(), level="tool", project_root=str(tmp_path))
+        assert interro.level == "tool"
+        assert [s.name for s in interro.sections] == ["identity", "state"]
+        identity, state = interro.sections
+        assert identity.kind == "fields"
+        assert identity.title == "Tool 'widget' -- identity card:"
+        fields = dict(identity.rows)
+        assert fields["Kind"] == "tool"
+        assert fields["Name"] == "widget"
+        assert fields["Language"] == "python"
+        assert fields["Tags"] == "a, b"
+        assert state.kind == "fields" and state.title == "Current state:"
+
+    def test_state_facet_projects_mode_missing_without_a_directory(self, tmp_path):
+        # A tool with no directory reads as MISSING -- the no-filesystem path.
+        tool = _tool("ghost", directory=None)
+        interro = interrogate(
+            tool, _engine(), level="tool", facets={"state"},
+            project_root=str(tmp_path))
+        assert [s.name for s in interro.sections] == ["state"]
+        assert dict(interro.sections[0].rows)["Mode"] == "MISSING"
+
+    def test_embedded_tool_reads_embedded(self, tmp_path):
+        d = tmp_path / "widget"
+        d.mkdir()
+        tool = _tool("widget", directory=str(d))
+        interro = interrogate(
+            tool, _engine(), level="tool", facets={"state"},
+            project_root=str(tmp_path))
+        assert dict(interro.sections[0].rows)["Mode"] == "EMBEDDED"
+
+    def test_identity_facet_only_is_the_reduction(self, tmp_path):
+        tool = _tool("widget")
+        interro = interrogate(
+            tool, _engine(), level="tool", facets={"identity"},
+            project_root=str(tmp_path))
+        assert [s.name for s in interro.sections] == ["identity"]
+
+    def test_json_nests_mode_under_state(self, tmp_path, capsys):
+        tool = _tool("ghost", directory=None)
+        interro = interrogate(
+            tool, _engine(), level="tool", project_root=str(tmp_path))
+        render_interrogation(interro, as_json=True)
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["name"] == "ghost"
+        assert payload["state"]["mode"] == "MISSING"
 
 
 # --- render_interrogation: the one display layer ----------------------------

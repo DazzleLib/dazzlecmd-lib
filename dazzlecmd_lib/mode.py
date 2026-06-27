@@ -444,6 +444,25 @@ STATE_LABELS = {
 }
 
 
+def classify_tool_state(project, project_root, *, tools_dir):
+    """The tool's current mode state as DATA -- the read-side of the mode
+    system (``cmd_status``'s per-tool classification, without the printing).
+
+    Returns ``(state, label)``: ``state`` is one of the ``STATE_*`` constants
+    and ``label`` its human form (``STATE_LABELS``). The directory comes from
+    ``project.directory``; an entity with no directory is ``STATE_MISSING``.
+    This is what a tool interrogation's ``state`` facet projects -- the
+    tool-level analogue of the kit's verb-axis ``axis_state``.
+    """
+    tool_dir = getattr(project, "directory", None)
+    if not tool_dir:
+        return STATE_MISSING, STATE_LABELS.get(STATE_MISSING, STATE_MISSING)
+    gitmodules = parse_gitmodules(project_root, tools_dir=tools_dir)
+    state = detect_tool_state(
+        tool_dir, gitmodules, project_root, tools_dir=tools_dir)
+    return state, STATE_LABELS.get(state, state)
+
+
 def cmd_status(projects, project_root, tool_filter=None, kit_filter=None, *,
                tools_dir, command):
     """Show mode status for tools.

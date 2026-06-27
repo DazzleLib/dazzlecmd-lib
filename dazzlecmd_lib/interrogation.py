@@ -12,10 +12,11 @@ from the ``VERB_AXES`` registry via ``axis_state`` -- the kit's current rung on
 each lifecycle axis. Presence is what you get when you read the verb registry
 instead of toggling it; that's why the two never duplicate.
 
-Slice 1 (this file) covers the **kit** and **aggregator** levels, reproducing
-the dz-side cards byte-for-byte. The **tool** level (identity + mode state) and
-the lib-wide removal of the separate ``status`` verb land in the following SD-A
-slices.
+Slices 1-2 cover the **kit**, **aggregator**, and **tool** levels. The tool's
+``state`` facet projects its mode (the read-side of ``dazzlecmd_lib.mode``), the
+tool-level analogue of the kit's verb-axis ``axis_state``. Routing the dz-side
+``dz info`` reads through this surface (with the deliberate byte-gate re-bless)
+lands in the following SD-A slice.
 """
 
 from __future__ import annotations
@@ -157,6 +158,52 @@ def _aggregator_identity_fields(engine, projects, kits, project_root):
     ]
 
 
+def _tool_identity_fields(project, engine):
+    """The tool's static identity field-set -- the identity rows of the old
+    ``render_info`` (name/fqcn/kit/namespace/version/platform/...). The
+    resolution banners (alias provenance, shadow status) stay in the dz
+    resolution layer: this is the entity's identity, not how it was reached."""
+    taxonomy = getattr(project, "taxonomy", None) or {}
+    tags = taxonomy.get("tags") if isinstance(taxonomy, dict) else None
+    category = taxonomy.get("category") if isinstance(taxonomy, dict) else None
+    abs_fqcn = None
+    if engine is not None and hasattr(engine, "absolute_fqcn"):
+        a = engine.absolute_fqcn(project)
+        if a and a != getattr(project, "fqcn", None):
+            abs_fqcn = a
+    return [
+        ("Name", getattr(project, "name", None)),
+        ("FQCN", getattr(project, "fqcn", None)),
+        ("Absolute", abs_fqcn),
+        ("Kind", "tool"),
+        ("Kit", getattr(project, "kit_import_name", None)),
+        ("Namespace", getattr(project, "namespace", None)),
+        ("Version", getattr(project, "version", None)),
+        ("Description", getattr(project, "description", None)),
+        ("Platform", getattr(project, "platform", None) or "cross-platform"),
+        ("Language", getattr(project, "language", None)),
+        ("Category", category),
+        ("Tags", ", ".join(tags) if tags else None),
+    ]
+
+
+def _tool_state_fields(project, engine, project_root):
+    """The tool's dynamic state -- its mode -- as a field-set: the read-side of
+    the mode system (the tool-level analogue of the kit's ``axis_state``). Mode
+    is not yet a registered ``VerbAxis``, so it projects as a labelled value
+    rather than ``{warm, cold}`` rungs; when SD-2 registers the mode subspace
+    this becomes an axes projection like the kit's. Mode is filesystem-derived,
+    so without a ``project_root`` there is nothing to read."""
+    from dazzlecmd_lib import mode as _mode
+    root = project_root if project_root is not None else getattr(
+        engine, "project_root", None)
+    if root is None:
+        return [("Mode", None)]
+    tools_dir = getattr(engine, "tools_dir", "projects")
+    _state, label = _mode.classify_tool_state(project, root, tools_dir=tools_dir)
+    return [("Mode", label)]
+
+
 # ---------------------------------------------------------------------------
 # interrogate -- build the facet sections for an entity at a level
 # ---------------------------------------------------------------------------
@@ -198,6 +245,18 @@ def interrogate(entity, engine, *, level, facets=None, project_root=None,
                 title=f"Aggregator '{name}' -- identity card:"))
         # The aggregator gains no state facet until a later SD-A slice widens
         # axis_state to the aggregator's own axes.
+    elif level == "tool":
+        if want("identity"):
+            tool_name = getattr(entity, "name", None) or "tool"
+            sections.append(Section(
+                name="identity", kind="fields",
+                rows=_tool_identity_fields(entity, engine),
+                title=f"Tool '{tool_name}' -- identity card:"))
+        if want("state"):
+            sections.append(Section(
+                name="state", kind="fields",
+                rows=_tool_state_fields(entity, engine, project_root),
+                title="Current state:"))
     else:
         raise ValueError(f"interrogate: unsupported level {level!r}")
 
@@ -235,14 +294,20 @@ def render_interrogation(interro, *, as_json=False):
     section), or a JSON object mirroring the same data. The full ``info`` view
     and every facet reduction render through this one function."""
     if as_json:
+        def _key(label):
+            return label.lower().replace(" ", "_").replace("-", "_")
         payload = {}
         for sec in interro.sections:
-            if sec.kind == "fields":
+            if sec.name == "state":
+                # The state facet always nests under "state" -- the axis->rung
+                # map (kit) or the labelled field map (the tool's mode).
+                if sec.kind == "axes":
+                    payload["state"] = {axis: cur for axis, cur, _w, _c in sec.rows}
+                else:
+                    payload["state"] = {_key(l): v for l, v in sec.rows}
+            elif sec.kind == "fields":
                 for label, value in sec.rows:
-                    key = label.lower().replace(" ", "_").replace("-", "_")
-                    payload[key] = value
-            elif sec.kind == "axes":
-                payload["state"] = {axis: cur for axis, cur, _w, _c in sec.rows}
+                    payload[_key(label)] = value
         print(_json.dumps(payload, indent=2))
         return 0
 

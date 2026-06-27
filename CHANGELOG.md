@@ -8,6 +8,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 This repository is the standalone home of the library, extracted from the dazzlecmd monorepo at v0.8.55 (2026-06-24). Commit history through 0.8.55 lives in the [dazzlecmd](https://github.com/DazzleTools/dazzlecmd) repository's git log (under `packages/dazzlecmd-lib/`); this CHANGELOG and all subsequent history continue here.
 
+## [0.9.11] - 2026-06-26
+
+B4-mutate (loading axis). Reserves `attach` and `detach` in `DEFAULT_RESERVED_COMMANDS` -- the loading axis's warm/cold poles, hoisted to the bare `dz attach <kit>` / `dz detach <kit>` form (the loading analog of 0.9.10's `enable`/`disable`). Same generic verb x level dispatch path, same reserve-globally / opt-in-via-`enabled_meta_commands` rule.
+
 ## [0.9.10] - 2026-06-26
 
 B4-mutate (the bare-verb mutating dispatch, library side). Reserves `enable` and `disable` in `DEFAULT_RESERVED_COMMANDS` -- the activation axis's warm/cold poles, hoisted to the bare `dz enable <kit>` / `dz disable <kit>` form. An aggregator that lists them in its `enabled_meta_commands` gets the bare cross-level toggles (the generic verb x level dispatcher resolves the target's level and fails loud at the wrong one -- `resolve_target(mutating=True)`); the names are reserved globally so no tool can squat them. dazzlecmd activates them; other aggregators reserve-but-don't-expose until they opt in.

@@ -273,6 +273,23 @@ def interrogate(entity, engine, *, level, facets=None, project_root=None,
     view). ``facets={"state"}`` -> just that section (a reduction; e.g.
     ``status`` / ``mode info``). The caller is responsible for resolving the
     entity and handling "not found"; ``interrogate`` assumes it exists.
+
+    **Card vs. catalog -- why ``membership``/``structure`` are opt-in.** These
+    two facets use the stricter ``facets is not None and ... in facets`` guard
+    (not ``want()``), so they are *excluded* from the default ``info`` card and
+    appear only on explicit request. That is deliberate, not an oversight: they
+    are the card-shaped, invariant-full *overview* of an entity's containment
+    (an aggregator's whole kit+tool subtree as aligned rows). The rich
+    ``dz list`` / ``dz tree`` *catalog* reads -- multi-section, ``--show`` modes,
+    collision/alias markers, depth -- are a different read SHAPE, not a card,
+    and they keep their own renderers (``rendering.render_list`` /
+    ``render_tree``). The read family is unified at the meta-command layer (both
+    are read verbs in the registry); it is NOT unified by forcing the catalog
+    through the fields/axes facet model. See the list/tree reconciliation DWP
+    (2026-06-27, decision S3 -- coexist): the card overview and the rich catalog
+    are siblings, the catalog being the richer of the two. Surfacing these
+    facets on the default card is a future, deliberate ``info`` re-bless -- not
+    wired here.
     """
     def want(f):
         return facets is None or f in facets

@@ -463,6 +463,79 @@ def classify_tool_state(project, project_root, *, tools_dir):
     return state, STATE_LABELS.get(state, state)
 
 
+def _all_submodule_paths(project_root):
+    """Every submodule path in ``.gitmodules``, aggregator-root-relative, at ANY
+    depth.
+
+    Unlike :func:`parse_gitmodules` (which keeps only 3-part
+    ``<tools_dir>/<ns>/<tool>`` TOOL paths), this keeps the 2-part kit-level and
+    aggregator-level entries too, so mode detection works at every level (the
+    SD-2 cross-level read-only down-payment).
+    """
+    repo_root, gitmodules_path = _find_gitmodules(project_root)
+    if gitmodules_path is None:
+        return set()
+    config = configparser.ConfigParser()
+    config.read(gitmodules_path)
+    paths = set()
+    for section in config.sections():
+        if not section.startswith('submodule "'):
+            continue
+        raw_path = config[section].get("path", "")
+        if not raw_path:
+            continue
+        try:
+            rel = os.path.relpath(
+                os.path.join(repo_root, raw_path), project_root
+            ).replace("\\", "/")
+        except ValueError:
+            continue
+        paths.add(rel)
+    return paths
+
+
+def classify_entity_state(entity, project_root):
+    """The tracking state of ANY entity (tool / kit / aggregator) -- the
+    level-general, READ-only down-payment of cross-level mode (SD-2).
+
+    Detects the entity's source ``directory``: a junction/symlink to a local
+    repo (DEV), a registered git submodule (PUBLISH), a plain embedded dir, or a
+    symlink with no submodule (LOCAL-ONLY). An entity with no materialized
+    ``directory`` (e.g. a pointer kit) has no tracking kind -- reported
+    ``STATE_MISSING`` (the corrected SD-2 fiber: tracking is only defined over
+    ``materialized=true``). Switch/restore at the kit/aggregator level + the
+    materialization axis are the Phase-H capstone; this is detection only.
+
+    Returns ``(state, label)`` like :func:`classify_tool_state`.
+    """
+    entity_dir = getattr(entity, "directory", None)
+    if not entity_dir or not os.path.exists(entity_dir):
+        # No materialized content DIRECTORY. A manifest-defined entity (e.g. a
+        # kit whose source is an embedded ``.kit.json`` living in the aggregator
+        # repo) is EMBEDDED; an entity with neither a directory nor an existing
+        # source is MISSING (a tool whose files are gone, or a pointer /
+        # unmaterialized kit -- no tracking kind). The proper materialization /
+        # kit-source model is the Phase-H capstone; this read-only down-payment
+        # treats an embedded manifest as EMBEDDED.
+        source = (getattr(entity, "kit_source", None)
+                  or getattr(entity, "source", None))
+        if source and os.path.exists(source):
+            return STATE_EMBEDDED, STATE_LABELS.get(STATE_EMBEDDED, STATE_EMBEDDED)
+        return STATE_MISSING, STATE_LABELS.get(STATE_MISSING, STATE_MISSING)
+    try:
+        rel = os.path.relpath(entity_dir, project_root).replace("\\", "/")
+    except ValueError:
+        rel = None
+    has_submodule = bool(rel) and rel in _all_submodule_paths(project_root)
+    if is_linked_project(entity_dir):
+        state = STATE_SYMLINK if has_submodule else STATE_LOCAL_ONLY
+    elif os.path.isdir(entity_dir):
+        state = STATE_SUBMODULE if has_submodule else STATE_EMBEDDED
+    else:
+        state = STATE_MISSING
+    return state, STATE_LABELS.get(state, state)
+
+
 def cmd_status(projects, project_root, tool_filter=None, kit_filter=None, *,
                tools_dir, command):
     """Show mode status for tools.

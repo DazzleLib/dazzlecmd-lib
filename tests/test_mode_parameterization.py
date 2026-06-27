@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import os
+import types
 from pathlib import Path
 
 import pytest
@@ -25,10 +26,12 @@ from dazzlecmd_lib.mode import (
     STATE_EMBEDDED,
     STATE_MISSING,
     STATE_SUBMODULE,
+    _all_submodule_paths,
     _check_dirty_tree,
     _find_undiscovered_tool,
     _resolve_remote_url,
     _tool_dir_to_submodule_path,
+    classify_entity_state,
     detect_tool_state,
     parse_gitmodules,
 )
@@ -611,3 +614,43 @@ class TestSwitchRefusesDirty:
         assert "--force" in captured.out
         # Dry-run does NOT delete anything.
         assert (tool_path / "wip.py").exists()
+
+
+class TestClassifyEntityState:
+    """The level-general tracking detection (SD-2 cross-level read down-payment).
+
+    Reuses the tool detection logic but UNANCHORED from ``tools_dir``, so it works
+    for a kit/aggregator directory and for a manifest-defined (directory-less)
+    kit, where an existing embedded ``.kit.json`` reads EMBEDDED."""
+
+    def test_plain_directory_is_embedded(self, tmp_path):
+        d = tmp_path / "content"
+        d.mkdir()
+        ent = types.SimpleNamespace(directory=str(d))
+        state, _label = classify_entity_state(ent, str(tmp_path))
+        assert state == STATE_EMBEDDED
+
+    def test_manifest_only_entity_is_embedded(self, tmp_path):
+        manifest = tmp_path / "demo.kit.json"
+        manifest.write_text("{}", encoding="utf-8")
+        ent = types.SimpleNamespace(directory=None, kit_source=str(manifest))
+        state, _label = classify_entity_state(ent, str(tmp_path))
+        assert state == STATE_EMBEDDED
+
+    def test_no_directory_no_existing_source_is_missing(self, tmp_path):
+        ent = types.SimpleNamespace(directory=None, kit_source="/x/gone.json")
+        state, _label = classify_entity_state(ent, str(tmp_path))
+        assert state == STATE_MISSING
+
+    def test_submodule_directory_is_submodule(self, tmp_path):
+        (tmp_path / ".git").mkdir()
+        (tmp_path / ".gitmodules").write_text(
+            '[submodule "vendor/thing"]\n'
+            '\tpath = vendor/thing\n\turl = https://example/thing\n',
+            encoding="utf-8")
+        sub = tmp_path / "vendor" / "thing"
+        sub.mkdir(parents=True)
+        assert _all_submodule_paths(str(tmp_path)) == {"vendor/thing"}
+        ent = types.SimpleNamespace(directory=str(sub))
+        state, _label = classify_entity_state(ent, str(tmp_path))
+        assert state == STATE_SUBMODULE

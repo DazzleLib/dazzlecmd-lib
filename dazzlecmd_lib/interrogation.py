@@ -305,9 +305,20 @@ def interrogate(entity, engine, *, level, facets=None, project_root=None,
                 rows=_kit_identity_fields(entity),
                 title=f"Kit '{kit_name}' -- identity card:"))
         if want("state"):
-            rows, _always = axis_state(entity, engine, project_root)
+            rows = list(axis_state(entity, engine, project_root)[0] or [])
+            # SD-2 read-only down-payment: the kit's TRACKING kind (submodule /
+            # symlink / embedded / local-only) -- the categorical mode fiber over
+            # materialization, shown ALONGSIDE the lifecycle axes (NOT as a
+            # presence-ladder rung; mode is orthogonal/categorical). It is not yet
+            # a registered VerbAxis (the graded-axis fold is pending), so it
+            # projects as a categorical row (no warm/cold) -- the kit analogue of
+            # the tool's "Mode" field. A pointer/unmaterialized kit has no
+            # tracking kind -> "(none)"-ish MISSING label.
+            from dazzlecmd_lib.mode import classify_entity_state
+            _t_state, t_label = classify_entity_state(entity, project_root)
+            rows.append(("tracking", t_label, None, None))
             sections.append(Section(
-                name="state", kind="axes", rows=rows or [],
+                name="state", kind="axes", rows=rows,
                 title="Current state:"))
         if facets is not None and "membership" in facets:
             sections.append(Section(
@@ -379,9 +390,16 @@ def _print_entity_card(title, fields):
 
 
 def _print_axis_rows(rows):
-    """Print the ``(axis, rung, warm, cold)`` rows as the aligned state block."""
+    """Print the ``(axis, rung, warm, cold)`` rows as the aligned state block.
+
+    A CATEGORICAL row (``warm``/``cold`` both ``None`` -- e.g. the ``tracking``
+    fiber: submodule/symlink/embedded/local-only) prints just ``axis  value``
+    with no ``(warm <-> cold)`` suffix, since it has no binary poles."""
     for axis, cur, warm, cold in rows:
-        print(f"  {axis:<12} {cur:<20} ({warm} <-> {cold})")
+        if warm is None and cold is None:
+            print(f"  {axis:<12} {cur}")
+        else:
+            print(f"  {axis:<12} {cur:<20} ({warm} <-> {cold})")
 
 
 def render_interrogation(interro, *, as_json=False):

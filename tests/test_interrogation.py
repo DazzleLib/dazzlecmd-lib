@@ -93,7 +93,7 @@ class TestInterrogateKit:
         assert dict(identity.rows)["Kind"] == "kit"
         assert state.kind == "axes" and state.title == "Current state:"
         assert [a for a, *_ in state.rows] == [
-            "activation", "loading", "membership"]
+            "activation", "loading", "membership", "tracking"]
 
     def test_facet_identity_only_is_the_reduction(self, tmp_path):
         kit = _kit("demo")
@@ -108,6 +108,24 @@ class TestInterrogateKit:
             kit, _engine(kits=[kit]), level="kit", facets={"state"},
             project_root=str(tmp_path))
         assert [s.name for s in interro.sections] == ["state"]
+
+    def test_state_includes_a_tracking_row(self, tmp_path):
+        # SD-2 read-only down-payment: the kit's tracking kind (the mode fiber)
+        # appears as a CATEGORICAL row in the state -- no warm/cold poles -- the
+        # kit analogue of the tool's "Mode" field. An existing embedded manifest
+        # reads EMBEDDED.
+        manifest = tmp_path / "demo.kit.json"
+        manifest.write_text("{}", encoding="utf-8")
+        kit = _kit("demo")
+        kit.kit_source = str(manifest)
+        interro = interrogate(
+            kit, _engine(kits=[kit]), level="kit", facets={"state"},
+            project_root=str(tmp_path))
+        tracking = [r for r in interro.sections[0].rows if r[0] == "tracking"]
+        assert len(tracking) == 1
+        _axis, value, warm, cold = tracking[0]
+        assert value == "EMBEDDED"
+        assert warm is None and cold is None        # categorical, not binary
 
     def test_virtual_kit_kind_and_alias_count(self, tmp_path):
         kit = _kit("v", virtual=True, tools=(1, 2, 3))

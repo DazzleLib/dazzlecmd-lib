@@ -14,7 +14,9 @@ from dazzlecmd_lib.interrogation import (
     Section,
     axis_state,
     interrogate,
+    membership_rows,
     render_interrogation,
+    structure_rows,
 )
 
 
@@ -231,3 +233,76 @@ class TestRender:
             Section(name="state", kind="axes", rows=[], title="Current state:")])
         render_interrogation(interro)
         assert "Current state:" not in capsys.readouterr().out
+
+
+# --- membership / structure facets (the list/tree referent, invariant-full) -
+
+
+class TestMembershipStructure:
+    def test_aggregator_membership_is_kits_plus_tools(self):
+        # The invariant-full referent: an aggregator's members = ALL kits AND
+        # ALL tools (the whole subtree), kits first then tools.
+        kits = [_kit("core", tools=("find", "grep")), _kit("media", tools=("mp3me",))]
+        tools = [_tool("find"), _tool("mp3me")]
+        rows = membership_rows(None, _engine(), "aggregator", projects=tools, kits=kits)
+        assert [k for k, *_ in rows] == ["kit", "kit", "tool", "tool"]
+        assert ("kit", "core", "2 tool(s)") in rows
+        assert ("tool", "find", "") in rows
+
+    def test_kit_membership_is_its_tools(self):
+        kit = _kit("core", tools=("find", "grep"))
+        assert membership_rows(kit, _engine(), "kit") == [
+            ("tool", "find", ""), ("tool", "grep", "")]
+
+    def test_tool_membership_is_empty_leaf(self):
+        assert membership_rows(_tool("find"), _engine(), "tool") == []
+
+    def test_aggregator_structure_groups_tools_by_kit(self):
+        kits = [_kit("core", tools=("find", "grep")), _kit("media", tools=("mp3me",))]
+        assert structure_rows(None, _engine(), "aggregator", kits=kits) == [
+            ("core", ["find", "grep"]), ("media", ["mp3me"])]
+
+    def test_membership_is_opt_in_not_in_full_info(self, tmp_path):
+        # facets=None (full info) must NOT pull the member list -- info is the
+        # node's OWN read; list/tree are opt-in child reads.
+        kit = _kit("core", tools=("find",))
+        interro = interrogate(kit, _engine(kits=[kit]), level="kit",
+                              project_root=str(tmp_path))
+        names = [s.name for s in interro.sections]
+        assert "membership" not in names and "structure" not in names
+
+    def test_interrogate_aggregator_membership_facet(self):
+        kits = [_kit("core", tools=("find",))]
+        eng = _engine()
+        interro = interrogate(eng, eng, level="aggregator", facets={"membership"},
+                              projects=[_tool("find")], kits=kits)
+        assert [s.name for s in interro.sections] == ["membership"]
+        assert interro.sections[0].kind == "list"
+
+    def test_interrogate_kit_structure_facet(self):
+        kit = _kit("core", tools=("find", "grep"))
+        interro = interrogate(kit, _engine(), level="kit", facets={"structure"})
+        assert [s.name for s in interro.sections] == ["structure"]
+        assert interro.sections[0].rows == [("core", ["find", "grep"])]
+
+    def test_render_list_and_tree_sections(self, capsys):
+        kits = [_kit("core", tools=("find", "grep"))]
+        eng = _engine()
+        interro = interrogate(eng, eng, level="aggregator",
+                              facets={"membership", "structure"},
+                              projects=[_tool("find")], kits=kits)
+        render_interrogation(interro)
+        out = capsys.readouterr().out
+        assert "Members:" in out and "[kit] core" in out
+        assert "Structure:" in out and "- find" in out
+
+    def test_json_members_and_structure(self, capsys):
+        kits = [_kit("core", tools=("find",))]
+        eng = _engine()
+        interro = interrogate(eng, eng, level="aggregator",
+                              facets={"membership", "structure"},
+                              projects=[_tool("find")], kits=kits)
+        render_interrogation(interro, as_json=True)
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["members"][0]["kind"] == "kit"
+        assert payload["structure"]["core"] == ["find"]

@@ -8,6 +8,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 This repository is the standalone home of the library, extracted from the dazzlecmd monorepo at v0.8.55 (2026-06-24). Commit history through 0.8.55 lives in the [dazzlecmd](https://github.com/DazzleTools/dazzlecmd) repository's git log (under `packages/dazzlecmd-lib/`); this CHANGELOG and all subsequent history continue here.
 
+## [0.9.9] - 2026-06-26
+
+SD-A slice 3 (list/tree referent). Adds the `membership` and `structure` facets to `interrogate` -- the data behind `list` and `tree`, on the **invariant-full referent** (referent DWP): an aggregator's members are its WHOLE subtree (every kit AND every tool), a kit's members are its tools, a tool is a leaf; the no-target overview reads the aggregator, so the set does not shrink with the foreground level -- the level only moves the camera. Both are **opt-in** facets (`facets={"membership"}` / `{"structure"}`): a full `info` read stays the node's own identity + state, not its child enumeration. `render_interrogation` gains `list` and `tree` section rendering (+ `--json` `members` / `structure`). Additive -- nothing routes through these yet; the byte-parity fold of `render_list` / `render_kit_list` / `render_tree` into these facets is the SD-E decomposition. +9 tests; library suite 251.
+
 ## [0.9.8] - 2026-06-26
 
 SD-A slice 3 (info side). `dz info <tool>` (the `render_info` card) now appends a `Current state:` section showing the tool's mode, sourced from the same `classify_tool_state` projection the `interrogate` `state` facet uses. A tool's state now renders identically to the kit and aggregator cards -- `info` is the full read (identity + state) at every level. Additive: the existing identity / runtime / setup rows are unchanged. Every aggregator built on the library (amdead, wtf, ...) inherits the state section. The full `render_info` -> `interrogate` data fold (the runtime/setup rows as facet data) is deferred to the SD-E decomposition.

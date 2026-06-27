@@ -205,6 +205,62 @@ def _tool_state_fields(project, engine, project_root):
 
 
 # ---------------------------------------------------------------------------
+# membership / structure facets -- the read behind list/tree
+# ---------------------------------------------------------------------------
+
+
+def _tool_name(t):
+    return t if isinstance(t, str) else (getattr(t, "name", None) or str(t))
+
+
+def membership_rows(entity, engine, level, *, projects=None, kits=None):
+    """The entity's containment members as ``(kind, name, detail)`` rows -- the
+    data behind ``list``.
+
+    **Invariant-full referent** (referent DWP 2026-06-26): an aggregator's
+    members are its WHOLE subtree -- every kit AND every tool; a kit's members
+    are its tools; a tool is a leaf (no modelled components yet). The no-target
+    overview reads the aggregator, so the set does NOT shrink with the
+    foreground level -- the level only moves the camera (relative naming /
+    centering), it never filters which entities appear.
+    """
+    if level == "aggregator":
+        kit_list = kits if kits is not None else (getattr(engine, "kits", []) or [])
+        proj_list = projects if projects is not None else (
+            getattr(engine, "projects", []) or [])
+        rows = []
+        for k in kit_list:
+            kname = getattr(k, "kit_name", None) or getattr(k, "name", None)
+            n = len(getattr(k, "tools", None) or [])
+            rows.append(("kit", kname, f"{n} tool(s)"))
+        for p in proj_list:
+            rows.append(("tool", _tool_name(p), ""))
+        return rows
+    if level == "kit":
+        return [("tool", _tool_name(t), "")
+                for t in (getattr(entity, "tools", None) or [])]
+    return []  # tool leaf -- components not modelled yet
+
+
+def structure_rows(entity, engine, level, *, projects=None, kits=None):
+    """The entity's containment subtree as ``(kit_name, [tool_names])`` groups
+    -- the data behind ``tree`` (= ``membership`` recursed over containment).
+    Same invariant-full referent as ``membership_rows``."""
+    if level == "aggregator":
+        kit_list = kits if kits is not None else (getattr(engine, "kits", []) or [])
+        return [
+            (getattr(k, "kit_name", None) or getattr(k, "name", None),
+             [_tool_name(t) for t in (getattr(k, "tools", None) or [])])
+            for k in kit_list
+        ]
+    if level == "kit":
+        kname = getattr(entity, "kit_name", None) or getattr(entity, "name", None)
+        return [(kname,
+                 [_tool_name(t) for t in (getattr(entity, "tools", None) or [])])]
+    return []
+
+
+# ---------------------------------------------------------------------------
 # interrogate -- build the facet sections for an entity at a level
 # ---------------------------------------------------------------------------
 
@@ -236,6 +292,16 @@ def interrogate(entity, engine, *, level, facets=None, project_root=None,
             sections.append(Section(
                 name="state", kind="axes", rows=rows or [],
                 title="Current state:"))
+        if facets is not None and "membership" in facets:
+            sections.append(Section(
+                name="membership", kind="list",
+                rows=membership_rows(entity, engine, "kit"),
+                title="Members:"))
+        if facets is not None and "structure" in facets:
+            sections.append(Section(
+                name="structure", kind="tree",
+                rows=structure_rows(entity, engine, "kit"),
+                title="Structure:"))
     elif level == "aggregator":
         if want("identity"):
             name = getattr(entity, "name", None) or "aggregator"
@@ -245,6 +311,18 @@ def interrogate(entity, engine, *, level, facets=None, project_root=None,
                 title=f"Aggregator '{name}' -- identity card:"))
         # The aggregator gains no state facet until a later SD-A slice widens
         # axis_state to the aggregator's own axes.
+        if facets is not None and "membership" in facets:
+            sections.append(Section(
+                name="membership", kind="list",
+                rows=membership_rows(entity, engine, "aggregator",
+                                     projects=projects, kits=kits),
+                title="Members:"))
+        if facets is not None and "structure" in facets:
+            sections.append(Section(
+                name="structure", kind="tree",
+                rows=structure_rows(entity, engine, "aggregator",
+                                    projects=projects, kits=kits),
+                title="Structure:"))
     elif level == "tool":
         if want("identity"):
             tool_name = getattr(entity, "name", None) or "tool"
@@ -308,6 +386,11 @@ def render_interrogation(interro, *, as_json=False):
             elif sec.kind == "fields":
                 for label, value in sec.rows:
                     payload[_key(label)] = value
+            elif sec.kind == "list":
+                payload["members"] = [
+                    {"kind": k, "name": n, "detail": d} for k, n, d in sec.rows]
+            elif sec.kind == "tree":
+                payload["structure"] = {kit: tools for kit, tools in sec.rows}
         print(_json.dumps(payload, indent=2))
         return 0
 
@@ -319,4 +402,17 @@ def render_interrogation(interro, *, as_json=False):
                 print()
                 print(sec.title)
                 _print_axis_rows(sec.rows)
+        elif sec.kind == "list":
+            print()
+            print(sec.title)
+            for kind, name, detail in sec.rows:
+                suffix = f"  ({detail})" if detail else ""
+                print(f"  [{kind}] {name}{suffix}")
+        elif sec.kind == "tree":
+            print()
+            print(sec.title)
+            for kit_name, tools in sec.rows:
+                print(f"  {kit_name}")
+                for t in tools:
+                    print(f"    - {t}")
     return 0

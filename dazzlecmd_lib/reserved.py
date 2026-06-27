@@ -47,6 +47,9 @@ DEFAULT_RESERVED_COMMANDS = frozenset({
     "disable",  # Activation cold pole -- the bare-verb hoist of `kit disable`.
     "attach",   # Loading warm pole -- the bare-verb hoist of `kit attach`.
     "detach",   # Loading cold pole -- the bare-verb hoist of `kit detach`.
+    "meta",     # The meta namespace (SD-B): `dz meta use <level>` /
+                # `dz meta reset` -- the re-choosable foreground level.
+    "use",      # `dz use <level>` -- the top-level alias of `dz meta use`.
 })
 
 # The minimal user-facing meta-command set -- what an aggregator that is a

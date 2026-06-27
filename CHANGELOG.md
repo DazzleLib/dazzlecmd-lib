@@ -8,6 +8,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 This repository is the standalone home of the library, extracted from the dazzlecmd monorepo at v0.8.55 (2026-06-24). Commit history through 0.8.55 lives in the [dazzlecmd](https://github.com/DazzleTools/dazzlecmd) repository's git log (under `packages/dazzlecmd-lib/`); this CHANGELOG and all subsequent history continue here.
 
+## [0.9.10] - 2026-06-26
+
+B4-mutate (the bare-verb mutating dispatch, library side). Reserves `enable` and `disable` in `DEFAULT_RESERVED_COMMANDS` -- the activation axis's warm/cold poles, hoisted to the bare `dz enable <kit>` / `dz disable <kit>` form. An aggregator that lists them in its `enabled_meta_commands` gets the bare cross-level toggles (the generic verb x level dispatcher resolves the target's level and fails loud at the wrong one -- `resolve_target(mutating=True)`); the names are reserved globally so no tool can squat them. dazzlecmd activates them; other aggregators reserve-but-don't-expose until they opt in.
+
 ## [0.9.9] - 2026-06-26
 
 SD-A slice 3 (list/tree referent). Adds the `membership` and `structure` facets to `interrogate` -- the data behind `list` and `tree`, on the **invariant-full referent** (referent DWP): an aggregator's members are its WHOLE subtree (every kit AND every tool), a kit's members are its tools, a tool is a leaf; the no-target overview reads the aggregator, so the set does not shrink with the foreground level -- the level only moves the camera. Both are **opt-in** facets (`facets={"membership"}` / `{"structure"}`): a full `info` read stays the node's own identity + state, not its child enumeration. `render_interrogation` gains `list` and `tree` section rendering (+ `--json` `members` / `structure`). Additive -- nothing routes through these yet; the byte-parity fold of `render_list` / `render_kit_list` / `render_tree` into these facets is the SD-E decomposition. +9 tests; library suite 251.

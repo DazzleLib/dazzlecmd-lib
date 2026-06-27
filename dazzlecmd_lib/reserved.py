@@ -42,6 +42,9 @@ DEFAULT_RESERVED_COMMANDS = frozenset({
     "action",   # Operate on metadata-plane annotations (dz action <type>
                 # <dot-expr>; pluggable types, `run` native first). Reserved
                 # AHEAD of the #87 framework so no tool can squat the verb.
+    "enable",   # Activation warm pole -- the bare-verb hoist of `kit enable`
+                # (B4-mutate). `dz enable <kit>` resolves the target's level.
+    "disable",  # Activation cold pole -- the bare-verb hoist of `kit disable`.
 })
 
 # The minimal user-facing meta-command set -- what an aggregator that is a

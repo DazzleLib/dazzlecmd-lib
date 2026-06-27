@@ -1286,6 +1286,21 @@ def render_info(args, projects, engine) -> int:
             for sub in _wrap_description(line, wrap_width):
                 print(f"{indent}{sub}")
 
+    # Current state (mode): append the `state` facet through the one
+    # interrogation surface, so the tool's state renders identically to the
+    # kit / aggregator cards and stays sourced from the same mode projection
+    # (`classify_tool_state`). The full render_info -> interrogate data fold
+    # (the runtime/setup rows as facet data) is SD-E decomposition work.
+    from dazzlecmd_lib.interrogation import (
+        interrogate as _interrogate,
+        render_interrogation as _render_interrogation,
+    )
+    print()
+    _state_interro = _interrogate(
+        project, engine, level="tool", facets={"state"},
+        project_root=getattr(engine, "project_root", None))
+    _render_interrogation(_state_interro)
+
     return 0
 
 

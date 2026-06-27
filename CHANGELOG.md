@@ -8,6 +8,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 This repository is the standalone home of the library, extracted from the dazzlecmd monorepo at v0.8.55 (2026-06-24). Commit history through 0.8.55 lives in the [dazzlecmd](https://github.com/DazzleTools/dazzlecmd) repository's git log (under `packages/dazzlecmd-lib/`); this CHANGELOG and all subsequent history continue here.
 
+## [0.9.8] - 2026-06-26
+
+SD-A slice 3 (info side). `dz info <tool>` (the `render_info` card) now appends a `Current state:` section showing the tool's mode, sourced from the same `classify_tool_state` projection the `interrogate` `state` facet uses. A tool's state now renders identically to the kit and aggregator cards -- `info` is the full read (identity + state) at every level. Additive: the existing identity / runtime / setup rows are unchanged. Every aggregator built on the library (amdead, wtf, ...) inherits the state section. The full `render_info` -> `interrogate` data fold (the runtime/setup rows as facet data) is deferred to the SD-E decomposition.
+
 ## [0.9.7] - 2026-06-26
 
 SD-A slice 2 (the read collapse, library side). Extends the one `interrogate()` read surface to the **tool** level: a tool now interrogates into an identity card plus a `state` facet that projects its mode -- the read-side of `dazzlecmd_lib.mode`, via the new `classify_tool_state(project, project_root, *, tools_dir)`, the tool-level analogue of the kit's verb-axis `axis_state`. **Removed** (breaking for downstream inheritors): the library default `kit status` meta-command -- `render_kit_status`, `kit_status_handler`, the `kit status` subparser, and the `kit_status` registration are gone; their content is superseded by `kit info` / `mode info` at reduced read-depth in the following slices. dazzlecmd itself is unaffected (it dispatches its own `kit status`); aggregators that relied on the inherited default lose it. +5 tests (`test_interrogation`, tool level); library suite 242.

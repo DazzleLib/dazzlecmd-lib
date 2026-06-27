@@ -113,3 +113,29 @@ class TestFavoritePins:                                      # AC1-4
             favorites={"dup": "core:dup"})
         r = eng.resolve_target("dup")        # read, but the favorite pins -> tool
         assert r.level == "tool" and r.notification is None
+
+
+class TestForegroundTiebreak:                                # SD-B
+    """The foreground (`dz meta use <level>`) breaks an ambiguous READ tie if it
+    is among the candidates -- a gentle default, NOT an override."""
+
+    def test_foreground_breaks_an_ambiguous_read_tie(self, tmp_path):
+        eng = _engine(tmp_path, tools=[_tool("dup")], kits=[make_kit(name="dup")])
+        r = eng.resolve_target("dup", foreground="kit")      # read
+        assert r.level == "kit"                              # foreground wins the tie
+        assert r.notification and "foreground is kit" in r.notification
+
+    def test_foreground_falls_back_to_precedence_when_not_a_candidate(self, tmp_path):
+        eng = _engine(tmp_path, tools=[_tool("dup")], kits=[make_kit(name="dup")])
+        r = eng.resolve_target("dup", foreground="aggregator")  # not a candidate
+        assert r.level == "tool"                             # back to tool>kit
+
+    def test_foreground_does_not_override_an_unambiguous_name(self, tmp_path):
+        eng = _engine(tmp_path, tools=[_tool("solo")])
+        r = eng.resolve_target("solo", foreground="kit")     # unambiguous tool
+        assert r.level == "tool"                             # foreground irrelevant
+
+    def test_foreground_does_not_auto_pick_a_mutation(self, tmp_path):
+        eng = _engine(tmp_path, tools=[_tool("dup")], kits=[make_kit(name="dup")])
+        with pytest.raises(AmbiguousLevelError):             # AC-SB-3: still fails loud
+            eng.resolve_target("dup", mutating=True, foreground="kit")

@@ -1775,7 +1775,7 @@ class AggregatorEngine:
         return None
 
     def resolve_target(self, name, *, applies_at=frozenset(LEVELS),
-                       as_level=None, mutating=False):
+                       as_level=None, mutating=False, foreground=None):
         """Resolve a bare ``name`` to a level-tagged entity (SD-1, the B4 keystone).
 
         Tries each level in ``applies_at`` -- tool via :meth:`resolve_command`
@@ -1796,6 +1796,11 @@ class AggregatorEngine:
             mutating: True for a verb that changes state. A bare ambiguous name
                 with a mutating verb raises :class:`AmbiguousLevelError` rather
                 than guessing (AC1-6).
+            foreground: the user's foreground level (``dz meta use <level>``), or
+                None. On a bare AMBIGUOUS READ it breaks the tie if it is among
+                the candidates -- a gentle default, never an override: an
+                unambiguous name never reaches the tie-break, and a mutating
+                ambiguous name already raised above (SD-B).
 
         Returns:
             a :class:`TargetResolution`, or ``None`` when nothing matches
@@ -1842,11 +1847,18 @@ class AggregatorEngine:
                 name, [(lvl, ent) for lvl, ent, _ in found], command=self.command)
 
         found.sort(key=lambda t: _READ_PRECEDENCE[t[0]])
-        level, entity, ctx = found[0]
-        others = ", ".join(f"a {lvl} named '{name}'" for lvl, _, _ in found[1:])
+        # The foreground (dz meta use <level>) breaks the tie if it is among the
+        # candidates -- a gentle default, not an override: an unambiguous name
+        # never reaches here, and a mutating ambiguous name already raised above.
+        picked = next((t for t in found if t[0] == foreground), found[0])
+        level, entity, ctx = picked
+        via_fg = foreground is not None and level == foreground
+        others = ", ".join(
+            f"a {lvl} named '{name}'" for lvl, _, _ in found if lvl != level)
+        why = f" (your foreground is {level})" if via_fg else ""
         note = (
             f"{self.command}: '{name}' matches more than one level; "
-            f"using the {level}. Also: {others}. Use --as <level> to choose."
+            f"using the {level}{why}. Also: {others}. Use --as <level> to choose."
         )
         return TargetResolution(
             entity, level, notification=note,

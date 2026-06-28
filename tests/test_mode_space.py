@@ -34,6 +34,7 @@ from dazzlecmd_lib.mode import (
     axes_for_mode,
     mode_for_axes,
 )
+from dazzlecmd_lib.verb_axis import MODE_APPLIES_AT, VERB_SPACE
 
 MATERIALIZED_STATES = [STATE_SUBMODULE, STATE_EMBEDDED, STATE_SYMLINK,
                        STATE_LOCAL_ONLY]
@@ -139,3 +140,26 @@ def test_every_state_constant_has_a_coordinate():
         STATE_SUBMODULE, STATE_EMBEDDED, STATE_SYMLINK, STATE_LOCAL_ONLY,
         STATE_MISSING,
     }
+
+
+class TestModeInVerbSpace:
+    """Mode is now a MEMBER of the one MUTATE space -- the dz mode + dz kit
+    management unification, made structural. Mode joins as a nested SUBSPACE
+    (not a flat binary VerbAxis) alongside activation/loading/membership/projection.
+    """
+
+    def test_mode_is_a_member_of_verb_space(self):
+        assert "mode" in VERB_SPACE.axes
+
+    def test_mode_sits_alongside_the_lifecycle_axes(self):
+        # The unification: kit-management axes and mode in ONE space.
+        assert {"activation", "loading", "membership", "projection", "mode"} \
+            <= set(VERB_SPACE.axes)
+
+    def test_the_mode_member_carries_both_sub_axes(self):
+        mode_member = VERB_SPACE.axes["mode"]
+        assert set(mode_member.axes) == {"materialization", "upstream"}
+
+    def test_mode_applies_at_every_real_level(self):
+        # Mode is NOT tool-only (the historical silo) -- it spans the continuum.
+        assert MODE_APPLIES_AT == frozenset({"tool", "kit", "aggregator"})

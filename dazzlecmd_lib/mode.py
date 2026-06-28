@@ -31,7 +31,16 @@ import sys
 from dataclasses import dataclass
 from typing import Any, Optional
 
-from dazzlecmd_lib.continuum import Continuum, ContinuumSpace
+from dazzlecmd_lib.mode_space import (  # noqa: F401  (re-export -- the pure space)
+    MATERIALIZATION_CONTINUUM,
+    MATERIALIZED_ABSENT,
+    MATERIALIZED_EMBODIED,
+    MATERIALIZED_REFERENCED,
+    MODE_SPACE,
+    UPSTREAM_CONTINUUM,
+    UPSTREAM_TRACKED,
+    UPSTREAM_UNTRACKED,
+)
 from dazzlecmd_lib.entity import build_entity
 from dazzlecmd_lib.contexts import (
     CriticalityBoundaryError,
@@ -56,63 +65,10 @@ STATE_MISSING = "missing"        # Path doesn't exist
 STATE_LOCAL_ONLY = "local-only"  # Symlink with no submodule registered
 
 
-# ---------------------------------------------------------------------------
-# MODE as a ContinuumSpace (SD-2 -- mode-as-subspace; mirrors KIT_PRESENCE_SPACE
-# in contexts.py).
-#
-# The flat pick ``dz mode switch <name>`` over {symlink, submodule, embedded,
-# local-only} is the GROUPED projection -- ONE selectable line, which is exactly
-# what a human wants when choosing a mode. Underneath, each name is a POINT in
-# MODE_SPACE = materialization x upstream: the UNGROUPED decomposition the rest of
-# the CLI reasons against (info, cross-level, cascade). Same point, two faces --
-# ``{grouping, ungrouping} = {P, not-P}`` applied to the mode names themselves
-# (the verb-name analog of the tool shortname<->FQCN duality).
-#
-#   materialization (PRESENCE, graded): embodied > referenced > absent
-#       how much of the thing is HERE -- a real directory (the thing itself) is
-#       more present than a symlink (a level of indirection to it elsewhere) is
-#       more present than nothing (a #80 pointer / MISSING). This dimension is the
-#       one that composes into KIT_PRESENCE_SPACE (a later slice).
-#   upstream (PROVENANCE, binary): tracked vs untracked -- whether a remote (a git
-#       submodule) governs updates/push/pull. ORTHOGONAL to presence: a submodule
-#       dir and an embedded dir are equally present; they differ only in tracking.
-#
-# No single 1-D order spans the four named modes -- you cannot linearise a
-# (presence-Continuum x orthogonal-binary) product. The 2x2 grid the names form is
-# ``MODE_SPACE.quadrants("materialization", "upstream")``; the presence ladder is
-# the ``materialization`` axis read alone. (DWP 2026-06-27 FINAL_ASSESSMENT +
-# Addendum 2: linkage IS presence, upstream is orthogonal provenance.)
-# ---------------------------------------------------------------------------
-
-# Presence rungs (warm = most present at rank 0; colder = less present).
-MATERIALIZED_EMBODIED = "embodied"      # a real directory -- the thing in place
-MATERIALIZED_REFERENCED = "referenced"  # a symlink/junction -- indirection to it
-MATERIALIZED_ABSENT = "absent"          # no directory -- a #80 pointer / MISSING
-
-MATERIALIZATION_CONTINUUM = Continuum(
-    name="materialization",
-    ranks={MATERIALIZED_EMBODIED: 0,
-           MATERIALIZED_REFERENCED: -1,
-           MATERIALIZED_ABSENT: -2},
-)
-
-# Provenance poles (binary; warm = tracked at 0).
-UPSTREAM_TRACKED = "tracked"      # a git submodule governs updates/push/pull
-UPSTREAM_UNTRACKED = "untracked"  # purely local, no remote
-
-UPSTREAM_CONTINUUM = Continuum(
-    name="upstream",
-    ranks={UPSTREAM_TRACKED: 0, UPSTREAM_UNTRACKED: -1},
-)
-
-# A PRODUCT (independent axes, scale-safe): materialization is a presence
-# dimension, upstream is orthogonal provenance -- no cross-axis "warmer/colder".
-MODE_SPACE = ContinuumSpace.compose(
-    "mode",
-    {"materialization": MATERIALIZATION_CONTINUUM, "upstream": UPSTREAM_CONTINUUM},
-    meaning="how a tracked entity is embodied (presence) x "
-            "whether a remote governs it (provenance)",
-)
+# MODE_SPACE (materialization x upstream) + the rung/pole constants live in
+# ``mode_space.py`` (the pure space, importable by the verb registry without this
+# module's git/subprocess weight; re-exported above). The flat-enum <-> axes bridge
+# stays HERE -- it needs the STATE_* names defined in this module.
 
 # The flat-enum <-> axes bridge. Each user-facing STATE name is one POINT
 # (materialization, upstream). MISSING sits at the ``absent`` presence rung, where

@@ -8,6 +8,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 This repository is the standalone home of the library, extracted from the dazzlecmd monorepo at v0.8.55 (2026-06-24). Commit history through 0.8.55 lives in the [dazzlecmd](https://github.com/DazzleTools/dazzlecmd) repository's git log (under `packages/dazzlecmd-lib/`); this CHANGELOG and all subsequent history continue here.
 
+## [0.9.18] - 2026-06-27
+
+`mode` joins the one MUTATE space. `MODE_SPACE` (lifted into a new pure `mode_space` module so the verb registry can compose it without `mode.py`'s git/subprocess weight) is now a NESTED member of `VERB_SPACE` alongside `activation`, `loading`, `membership`, and `projection` -- the structural unification of `dz mode` and `dz kit management`. Mode joins as a sub-space (not a flat binary `VerbAxis`), because its materialization rungs aren't one verb pair. `MODE_APPLIES_AT = {tool, kit, aggregator}` records that mode is meaningful at every real level, not just the historical tool silo. `dazzlecmd_lib.mode` re-exports every relocated name, so existing imports are unchanged. Additive.
+
 ## [0.9.17] - 2026-06-27
 
 `MODE_SPACE` -- mode modelled as a `ContinuumSpace`. The four tracking modes (`symlink`, `submodule`, `embedded`, `local-only`) are now the named points of a two-axis space: `materialization` (a graded presence axis -- a real directory is more present than a symlink, which is more present than an absent pointer) crossed with `upstream` (a binary provenance axis -- whether a git submodule governs updates/push/pull). `axes_for_mode` / `mode_for_axes` bridge a flat mode name and its `(materialization, upstream)` coordinate, so a mode can be reasoned about by its component properties -- and combined with other axes -- while a human still picks a single name. The 2x2 grid the names form is the derived `MODE_SPACE.quadrants("materialization", "upstream")` view. Additive: the existing `STATE_*` constants and `classify_*` functions are unchanged.

@@ -267,9 +267,14 @@ class TestVerbLevelSpace:
     without error; cross-axis/cross-level "warmer/colder" nav is refused."""
 
     def test_verb_space_has_an_axis_per_verb(self):
-        assert set(VERB_SPACE.leaves()) == set(verb_axis_names())
+        # Top-level axes = the 4 binary VerbAxes PLUS the `mode` subspace (mode is
+        # not a flat VerbAxis -- it joins as a nested ContinuumSpace).
+        assert set(VERB_SPACE.axes) == set(verb_axis_names()) | {"mode"}
         assert verb_axis_names() == (
             "activation", "loading", "membership", "projection")
+        # leaves() flattens the mode subspace -> mode.materialization / mode.upstream.
+        assert set(VERB_SPACE.leaves()) == (
+            set(verb_axis_names()) | {"mode.materialization", "mode.upstream"})
 
     def test_verb_level_space_composes_and_normal_forms(self):
         nf = VERB_LEVEL_SPACE.normal_form()   # must not raise (AC0-5)

@@ -26,6 +26,7 @@ from typing import FrozenSet, Optional, Tuple
 
 from dazzle_lib.groupable import Groupable
 from dazzlecmd_lib.continuum import Continuum, ContinuumSpace
+from dazzlecmd_lib.mode_space import MODE_SPACE
 
 # The universal grouped poles (H1): on -> warm, off -> cold.
 ON = "on"
@@ -233,9 +234,20 @@ def meta_tag_for(axis: str, pole: str, level: str) -> str:
 LEVEL_CONTINUUM = Continuum(
     "level", ranks={"tool": -2, "kit": -1, "aggregator": 0})
 
-# One axis per VerbAxis -- the VERB product (each axis's binary/graded continuum).
-VERB_SPACE = ContinuumSpace.compose(
-    "verb", {ax.axis: ax.continuum() for ax in VERB_AXES})
+# Mode is meaningful wherever an entity can be embodied/tracked -- tool, kit, AND
+# aggregator (the de-vendoring precedent extends it down the inward fiber too). The
+# binary VERB_AXES above are applies_at={kit} today, pending the SD-B widening.
+MODE_APPLIES_AT: FrozenSet[str] = frozenset({TOOL, KIT, AGGREGATOR})
+
+# The VERB product: one continuum per binary VerbAxis, PLUS the ``mode`` SUBSPACE
+# (materialization x upstream) composed in as a NESTED member. Mode is not a binary
+# {warm, cold} axis (its materialization rungs aren't one verb pair -- embodied<->
+# referenced is the dev/publish switch, referenced<->absent is materialize/de-), so
+# it joins the one MUTATE space as a ContinuumSpace, not a flat VerbAxis (compose
+# accepts a sub-space member, exactly as KIT_PRESENCE_SPACE nests visibility).
+_VERB_MEMBERS = {ax.axis: ax.continuum() for ax in VERB_AXES}
+_VERB_MEMBERS["mode"] = MODE_SPACE
+VERB_SPACE = ContinuumSpace.compose("verb", _VERB_MEMBERS)
 
 # (VERB x LEVEL): the verb product composed with the level continuum.
 VERB_LEVEL_SPACE = ContinuumSpace.compose(

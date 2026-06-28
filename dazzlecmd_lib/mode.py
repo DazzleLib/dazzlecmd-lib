@@ -31,6 +31,7 @@ import sys
 from dataclasses import dataclass
 from typing import Any, Optional
 
+from dazzlecmd_lib.continuum import Continuum, ContinuumSpace
 from dazzlecmd_lib.entity import build_entity
 from dazzlecmd_lib.contexts import (
     CriticalityBoundaryError,
@@ -53,6 +54,103 @@ STATE_SUBMODULE = "submodule"    # Publish mode — git submodule checkout
 STATE_EMBEDDED = "embedded"      # Plain directory, no submodule registered
 STATE_MISSING = "missing"        # Path doesn't exist
 STATE_LOCAL_ONLY = "local-only"  # Symlink with no submodule registered
+
+
+# ---------------------------------------------------------------------------
+# MODE as a ContinuumSpace (SD-2 -- mode-as-subspace; mirrors KIT_PRESENCE_SPACE
+# in contexts.py).
+#
+# The flat pick ``dz mode switch <name>`` over {symlink, submodule, embedded,
+# local-only} is the GROUPED projection -- ONE selectable line, which is exactly
+# what a human wants when choosing a mode. Underneath, each name is a POINT in
+# MODE_SPACE = materialization x upstream: the UNGROUPED decomposition the rest of
+# the CLI reasons against (info, cross-level, cascade). Same point, two faces --
+# ``{grouping, ungrouping} = {P, not-P}`` applied to the mode names themselves
+# (the verb-name analog of the tool shortname<->FQCN duality).
+#
+#   materialization (PRESENCE, graded): embodied > referenced > absent
+#       how much of the thing is HERE -- a real directory (the thing itself) is
+#       more present than a symlink (a level of indirection to it elsewhere) is
+#       more present than nothing (a #80 pointer / MISSING). This dimension is the
+#       one that composes into KIT_PRESENCE_SPACE (a later slice).
+#   upstream (PROVENANCE, binary): tracked vs untracked -- whether a remote (a git
+#       submodule) governs updates/push/pull. ORTHOGONAL to presence: a submodule
+#       dir and an embedded dir are equally present; they differ only in tracking.
+#
+# No single 1-D order spans the four named modes -- you cannot linearise a
+# (presence-Continuum x orthogonal-binary) product. The 2x2 grid the names form is
+# ``MODE_SPACE.quadrants("materialization", "upstream")``; the presence ladder is
+# the ``materialization`` axis read alone. (DWP 2026-06-27 FINAL_ASSESSMENT +
+# Addendum 2: linkage IS presence, upstream is orthogonal provenance.)
+# ---------------------------------------------------------------------------
+
+# Presence rungs (warm = most present at rank 0; colder = less present).
+MATERIALIZED_EMBODIED = "embodied"      # a real directory -- the thing in place
+MATERIALIZED_REFERENCED = "referenced"  # a symlink/junction -- indirection to it
+MATERIALIZED_ABSENT = "absent"          # no directory -- a #80 pointer / MISSING
+
+MATERIALIZATION_CONTINUUM = Continuum(
+    name="materialization",
+    ranks={MATERIALIZED_EMBODIED: 0,
+           MATERIALIZED_REFERENCED: -1,
+           MATERIALIZED_ABSENT: -2},
+)
+
+# Provenance poles (binary; warm = tracked at 0).
+UPSTREAM_TRACKED = "tracked"      # a git submodule governs updates/push/pull
+UPSTREAM_UNTRACKED = "untracked"  # purely local, no remote
+
+UPSTREAM_CONTINUUM = Continuum(
+    name="upstream",
+    ranks={UPSTREAM_TRACKED: 0, UPSTREAM_UNTRACKED: -1},
+)
+
+# A PRODUCT (independent axes, scale-safe): materialization is a presence
+# dimension, upstream is orthogonal provenance -- no cross-axis "warmer/colder".
+MODE_SPACE = ContinuumSpace.compose(
+    "mode",
+    {"materialization": MATERIALIZATION_CONTINUUM, "upstream": UPSTREAM_CONTINUUM},
+    meaning="how a tracked entity is embodied (presence) x "
+            "whether a remote governs it (provenance)",
+)
+
+# The flat-enum <-> axes bridge. Each user-facing STATE name is one POINT
+# (materialization, upstream). MISSING sits at the ``absent`` presence rung, where
+# ``upstream`` is a FIBER that does not apply (no tracking when unmaterialised) --
+# so its upstream coordinate is ``None``, not a 2x2 corner.
+MODE_COORDINATES = {
+    STATE_SUBMODULE:  (MATERIALIZED_EMBODIED,   UPSTREAM_TRACKED),    # publish
+    STATE_EMBEDDED:   (MATERIALIZED_EMBODIED,   UPSTREAM_UNTRACKED),
+    STATE_SYMLINK:    (MATERIALIZED_REFERENCED, UPSTREAM_TRACKED),    # dev
+    STATE_LOCAL_ONLY: (MATERIALIZED_REFERENCED, UPSTREAM_UNTRACKED),
+    STATE_MISSING:    (MATERIALIZED_ABSENT,     None),                # fiber edge
+}
+
+
+def axes_for_mode(state):
+    """UNGROUP a flat mode name into its ``(materialization, upstream)`` coordinate.
+
+    The grouping->ungrouping direction: ``submodule`` -> ``("embodied", "tracked")``.
+    ``upstream`` is ``None`` at MISSING (the ``absent`` rung is the fiber boundary --
+    no tracking when unmaterialised). Raises ``KeyError`` for an unknown state.
+    """
+    return MODE_COORDINATES[state]
+
+
+def mode_for_axes(materialization, upstream):
+    """GROUP a ``(materialization, upstream)`` coordinate back into a flat mode name.
+
+    The ungrouping->grouping direction: ``("embodied", "tracked")`` -> ``submodule``.
+    Any ``materialization == absent`` groups to MISSING (``upstream`` ignored -- the
+    fiber boundary). Raises ``KeyError`` for an unrecognised materialised coordinate.
+    """
+    if materialization == MATERIALIZED_ABSENT:
+        return STATE_MISSING
+    for state, (m, u) in MODE_COORDINATES.items():
+        if m == materialization and u == upstream:
+            return state
+    raise KeyError(
+        f"no mode at (materialization={materialization!r}, upstream={upstream!r})")
 
 
 def _find_gitmodules(project_root):

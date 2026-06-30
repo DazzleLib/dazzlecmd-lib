@@ -33,7 +33,8 @@ warning and the malformed key is treated as absent.
 import json
 import os
 import sys
-import tempfile
+
+from dazzle_filekit.operations import atomic_write_json
 
 
 SCHEMA_VERSION = 1
@@ -57,26 +58,42 @@ class ConfigManager:
     Instantiate once per engine and reuse.
     """
 
-    def __init__(self, config_dir=None):
+    def __init__(self, config_dir=None, filename="config.json"):
         """Initialize.
 
         Args:
-            config_dir: Directory containing ``config.json`` for this
+            config_dir: Directory containing the managed file for this
                 aggregator. If None, falls back to ``~/.dazzlecmd``.
                 The ``DAZZLECMD_CONFIG`` env var, if set, overrides
                 both.
+            filename: The managed JSON file's name. Defaults to
+                ``config.json``. Pass e.g. ``properties.json`` to manage a
+                SIBLING file with the SAME machinery (atomic write, read
+                cache, per-aggregator isolation). Sibling files resolve
+                beside the config file -- including under the
+                ``DAZZLECMD_CONFIG`` test-isolation override -- so one env
+                var isolates every managed file in a test's temp dir.
         """
         self._cache = None
         self._config_dir_override = config_dir
+        self._filename = filename
 
     def config_path(self):
-        """Return the active config file path (lazy, env-overridable)."""
+        """Return the active managed-file path (lazy, env-overridable).
+
+        ``DAZZLECMD_CONFIG`` points at the ``config.json`` file; a sibling
+        managed file (e.g. ``properties.json``) resolves to that file's
+        directory, so the single env var isolates every managed file in a
+        test's temp dir.
+        """
         override = os.environ.get("DAZZLECMD_CONFIG")
         if override:
-            return override
+            if self._filename == "config.json":
+                return override
+            return os.path.join(os.path.dirname(override), self._filename)
         if self._config_dir_override:
-            return os.path.join(self._config_dir_override, "config.json")
-        return os.path.expanduser("~/.dazzlecmd/config.json")
+            return os.path.join(self._config_dir_override, self._filename)
+        return os.path.expanduser(f"~/.dazzlecmd/{self._filename}")
 
     def config_dir(self):
         """Return the directory containing the active config file."""
@@ -155,7 +172,6 @@ class ConfigManager:
         ``_schema_version`` if missing. Invalidates the read cache.
         """
         path = self.config_path()
-        dir_ = self.config_dir()
 
         existing = {}
         if os.path.isfile(path):
@@ -169,24 +185,31 @@ class ConfigManager:
 
         existing.setdefault("_schema_version", SCHEMA_VERSION)
         existing.update(updates)
+        self._atomic_write(existing)
 
-        os.makedirs(dir_, exist_ok=True)
+    def replace(self, data):
+        """Overwrite the ENTIRE file with ``data`` (wholesale, no merge).
 
-        fd, tmp_path = tempfile.mkstemp(
-            prefix=".config.json.", suffix=".tmp", dir=dir_
-        )
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                json.dump(existing, f, indent=4, sort_keys=False)
-                f.write("\n")
-            os.replace(tmp_path, path)
-        except Exception:
-            try:
-                os.unlink(tmp_path)
-            except OSError:
-                pass
-            raise
+        Unlike ``write`` (which merges ``updates`` into the existing
+        file), ``replace`` rewrites from scratch -- use it to DELETE keys
+        (write the map without them). Injects ``_schema_version`` if
+        missing. Atomic; invalidates the read cache.
+        """
+        data = dict(data)
+        data.setdefault("_schema_version", SCHEMA_VERSION)
+        self._atomic_write(data)
 
+    def _atomic_write(self, data):
+        """Write ``data`` as the file's full content, atomically, and
+        invalidate the cache.
+
+        Delegates the temp-file-write + atomic ``os.replace`` (and parent
+        dir creation) to ``dazzle_filekit.atomic_write_json`` so that file
+        machinery lives in ONE place rather than being re-implemented here.
+        ``default=None`` preserves the prior fail-loud behavior (a non-JSON
+        value raises ``TypeError`` rather than being stringified).
+        """
+        atomic_write_json(self.config_path(), data, indent=4, default=None)
         self._cache = None
 
     def invalidate(self):

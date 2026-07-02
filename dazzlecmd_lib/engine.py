@@ -747,6 +747,14 @@ class AggregatorEngine:
         else:
             self.config = ConfigManager(config_dir=str(config_dir))
 
+        # The per-FQCN property store (properties.json beside config.json)
+        # is lazily constructed ON the engine so every consumer -- the
+        # prop verbs, the CLI sugar intercept, future channel views --
+        # shares ONE instance (two instances = two ConfigManager read
+        # caches over one file; a write through one leaves the other
+        # stale within a process). v2 contract R1.8.
+        self._property_store = None
+
         # Route user-override file lookup through the same per-aggregator
         # directory (config_dir/overrides). The DAZZLECMD_OVERRIDES_DIR
         # env var still takes precedence (test isolation).
@@ -767,6 +775,22 @@ class AggregatorEngine:
         self.fqcn_index = FQCNIndex(command=self.command)
         self._realpath_index = {}
         self._precedence_cache = None
+
+    @property
+    def property_store(self):
+        """The engine's single PropertyStore (lazily constructed).
+
+        Lives beside the engine's config (``<config_dir>/properties.json``),
+        inheriting the per-aggregator isolation and the ``DAZZLECMD_CONFIG``
+        test override. Always reach the store THROUGH the engine (one
+        read-cache; v2 contract R1.8).
+        """
+        if self._property_store is None:
+            from dazzlecmd_lib.property_store import PropertyStore
+            self._property_store = PropertyStore(
+                config_dir=self.config.config_dir()
+            )
+        return self._property_store
 
     def find_project_root(self, start_path=None):
         """Find the project root by looking for tools_dir/ and kits_dir/.

@@ -300,7 +300,14 @@ class TestVerbLevelSpace:
                 fn(*args)
 
     def test_level_continuum_is_the_containment_ladder(self):
-        assert LEVEL_CONTINUUM.levels() == ("tool", "kit", "aggregator")
-        # aggregator is the warm (neutral 0) capstone; tool the coldest.
+        # 3f" (SD-6/SD-7): the extended ladder -- fiber < lib <
+        # internaltool below the MVP rungs; supra above the aggregator.
+        assert LEVEL_CONTINUUM.levels() == (
+            "fiber", "lib", "internaltool", "tool", "kit", "aggregator",
+            "supra")
+        # aggregator keeps neutral 0; the MVP ranks are unchanged.
         assert LEVEL_CONTINUUM.rank("aggregator") == 0
         assert LEVEL_CONTINUUM.rank("tool") < LEVEL_CONTINUUM.rank("kit") < 0
+        # AC-8: the new poles sit outside the MVP band.
+        assert LEVEL_CONTINUUM.rank("fiber") < LEVEL_CONTINUUM.rank("tool")
+        assert LEVEL_CONTINUUM.rank("supra") > LEVEL_CONTINUUM.rank("aggregator")

@@ -229,10 +229,25 @@ def meta_tag_for(axis: str, pole: str, level: str) -> str:
 # ---------------------------------------------------------------------------
 
 # The containment level ladder as an ordered Continuum (aggregator = the
-# innermost-public capstone at neutral 0; tool the coldest). MVP {tool,kit,
-# aggregator}; SD-6 (inward fiber) / SD-7 (upper levels) extend it.
+# innermost-public capstone at neutral 0). Extended per SD-6 (the inward
+# fiber: fiber < lib < internaltool below tool) and SD-7 (the upper
+# levels: supra above the aggregator -- envs, shells, the containing
+# world). The original MVP rungs {tool, kit, aggregator} keep their
+# ranks, so every existing comparison and the tie-break (which only ever
+# SEES tool/kit/aggregator candidates -- extended rungs are stored-but-
+# inert there by design) are unchanged. `dz level <rung>` validates
+# against these ranks AT CALL TIME, so this extension widens the CLI
+# with no further change (v2 contract 3f").
 LEVEL_CONTINUUM = Continuum(
-    "level", ranks={"tool": -2, "kit": -1, "aggregator": 0})
+    "level", ranks={
+        "fiber": -5,          # the inward mechanism plane (the ':.' world)
+        "lib": -4,            # bedrock libraries (dazzle-lib et al.)
+        "internaltool": -3,   # internal/vendored tools
+        "tool": -2,
+        "kit": -1,
+        "aggregator": 0,
+        "supra": 1,           # the containing world (envs, shells; ':+')
+    })
 
 # Mode is meaningful wherever an entity can be embodied/tracked -- tool, kit, AND
 # aggregator (the de-vendoring precedent extends it down the inward fiber too). The

@@ -114,3 +114,137 @@ def test_parsedpath_is_hashable():
     p = parse("dz:.kit")
     assert isinstance(p, ParsedPath)
     {p: 1}
+
+
+# ---------------------------------------------------------------------------
+# 3a1" -- the grammar core amendments (v2 contract Revision 1)
+# ---------------------------------------------------------------------------
+
+from dazzlecmd_lib.fqcn_grammar import (  # noqa: E402
+    PLANE_ENTITY,
+    PLANE_FIBER,
+    PLANE_PROPERTY,
+    PLANE_SUBKEY,
+    PLANE_SUPRA,
+    is_operator_led,
+    parse_cli,
+    segment_planes,
+)
+
+
+class TestImplicitRoot:
+    """R1.2: the implicit root is SELF (engine-derived), never hardcoded."""
+
+    def test_prop_led_equals_rooted(self):
+        assert parse(".note", implicit_root="dz") == parse("dz.note")
+
+    def test_fiber_led_equals_rooted(self):
+        assert parse(
+            ":.kit.channels.verbosity", implicit_root="dz"
+        ) == parse("dz:.kit.channels.verbosity")
+
+    def test_root_generic_not_dz(self):
+        # AC-1 root-generic: wtf's engine passes its OWN root.
+        assert parse(".note", implicit_root="wtf") == parse("wtf.note")
+
+    def test_rooted_path_unaffected(self):
+        assert parse("dz:.kit", implicit_root="wtf") == parse("dz:.kit")
+
+    def test_operator_led_without_implicit_root_errors(self):
+        with pytest.raises(FQCNParseError):
+            parse(".note")
+
+
+class TestPropertyPlaneModeSwitch:
+    """R1.5: case-preserving sub-keys; no fiber/supra inside properties."""
+
+    def test_env_vars_debug_parses(self):
+        # SD-FQCN-1's flagship vector, previously rejected on case.
+        parsed = parse("dz.env-vars:DEBUG")
+        assert parsed.segments == (
+            Segment(OP_PROP, "env-vars"),
+            Segment(OP_PATH, "DEBUG"),
+        )
+
+    def test_subkey_case_distinct(self):
+        # Windows env footgun: DEBUG and debug are DISTINCT sub-keys.
+        assert parse("dz.env-vars:DEBUG") != parse("dz.env-vars:debug")
+
+    def test_subkey_round_trips_case(self):
+        assert unparse(parse("dz.env-vars:DEBUG")) == "dz.env-vars:DEBUG"
+
+    def test_tree_segments_stay_lowercase(self):
+        with pytest.raises(FQCNParseError):
+            parse("dz:.KIT")           # fiber plane: lowercase only
+        with pytest.raises(FQCNParseError):
+            parse("dz.NOTE")           # property NAMES are ours: lowercase
+
+    def test_interior_fiber_in_property_plane_errors(self):
+        with pytest.raises(FQCNParseError):
+            parse("dz.note:.weird")
+
+    def test_interior_supra_in_property_plane_errors(self):
+        with pytest.raises(FQCNParseError):
+            parse("dz.note:+x")
+
+    def test_subkey_then_nested_property(self):
+        # '.' after a sub-key stays a lowercase property step.
+        parsed = parse("dz.env-vars:DEBUG.note")
+        assert parsed.segments[-1] == Segment(OP_PROP, "note")
+
+
+class TestParseCli:
+    """R1.6: the trailing ':.' listing production (V-L1/2/3)."""
+
+    def test_v_l1_bare_listing(self):
+        parsed, trailing = parse_cli(":.", implicit_root="dz")
+        assert parsed == ParsedPath("dz", ())
+        assert trailing == ":."
+
+    def test_v_l2_node_listing(self):
+        parsed, trailing = parse_cli("dz:.kit:.")
+        assert parsed == parse("dz:.kit")
+        assert trailing == ":."
+
+    def test_property_subkey_listing_order(self):
+        # C-5 order vector: the trailing split runs BEFORE the
+        # interior-op check, so '.env-vars:.' is a listing, not an error.
+        parsed, trailing = parse_cli(".env-vars:.", implicit_root="dz")
+        assert parsed == parse("dz.env-vars")
+        assert trailing == ":."
+
+    def test_v_l3_segmentless_mid_path_errors(self):
+        with pytest.raises(FQCNParseError):
+            parse_cli("dz:.:.")
+
+    def test_reserved_trailing_ops_error(self):
+        for text in ("dz.note.", "dz:kit:", "dz:+", "."):
+            with pytest.raises(FQCNParseError):
+                parse_cli(text, implicit_root="dz")
+
+    def test_no_trailing_passthrough(self):
+        parsed, trailing = parse_cli("dz:.kit.channels.verbosity")
+        assert trailing is None
+        assert parsed == parse("dz:.kit.channels.verbosity")
+
+    def test_bare_listing_needs_root(self):
+        with pytest.raises(FQCNParseError):
+            parse_cli(":.")
+
+
+class TestOperatorLedAndPlanes:
+    def test_is_operator_led(self):
+        for text in (".note", ":.kit", ":+kit", ":grep"):
+            assert is_operator_led(text) is True
+        for text in ("grep", "dz:.kit", "-v", "--json", "", None):
+            assert is_operator_led(text) is False
+
+    def test_segment_planes(self):
+        parsed = parse("dz:grep.env-vars:DEBUG")
+        assert segment_planes(parsed) == (
+            PLANE_ENTITY, PLANE_PROPERTY, PLANE_SUBKEY,
+        )
+
+    def test_segment_planes_fiber_supra(self):
+        parsed = parse("dz:+kit:.verb")
+        assert segment_planes(parsed) == (PLANE_SUPRA, PLANE_FIBER)

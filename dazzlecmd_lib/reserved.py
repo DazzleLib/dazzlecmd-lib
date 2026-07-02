@@ -50,6 +50,12 @@ DEFAULT_RESERVED_COMMANDS = frozenset({
     "meta",     # The meta namespace (SD-B): `dz meta use <level>` /
                 # `dz meta reset` -- the re-choosable foreground level.
     "use",      # `dz use <level>` -- the top-level alias of `dz meta use`.
+    "prop",     # The property verb family (`dz meta prop ...`); reserved so
+                # the top-level shortname alias `dz prop` can never be
+                # shadowed by a tool. Canonical node: <root>:.meta:prop.
+    "level",    # The level-axis surface (`dz level [<rung>]` -- the verb
+                # face of the root property `<root>.level`); reserved ahead
+                # of its 3e" build. Canonical node: <root>:.meta:level.
 })
 
 # The minimal user-facing meta-command set -- what an aggregator that is a

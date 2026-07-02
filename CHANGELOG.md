@@ -8,6 +8,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 This repository is the standalone home of the library, extracted from the dazzlecmd monorepo at v0.8.55 (2026-06-24). Commit history through 0.8.55 lives in the [dazzlecmd](https://github.com/DazzleTools/dazzlecmd) repository's git log (under `packages/dazzlecmd-lib/`); this CHANGELOG and all subsequent history continue here.
 
+## [0.10.5-alpha] - 2026-07-02
+
+`prop` and `level` join `DEFAULT_RESERVED_COMMANDS` (3c"). Reserved so the top-level shortname aliases (`dz prop ...` == `dz meta prop ...`; `dz level` arriving with the level-as-property work) can never be shadowed by a tool. **Minor breaking change for downstream aggregators:** a tool named `prop` or `level` becomes uncreatable at the next lib upgrade (verified: no wtf-windows or amdead tool carries either name). Canonical verb-tree nodes: `<root>:.meta:prop` / `<root>:.meta:level`; the top-level names are their aliases (matching the existing `use` precedent).
+
 ## [0.10.4-alpha] - 2026-07-02
 
 The `prop` verb family core (3b"). New `prop_commands` module -- ONE implementation serving both surfaces: the explicit verbs (`prop get/set/add/delete/list`) and the CLI sugar (upsert). Write strictness: `add` requires the key NOT exist, `set` requires it to exist, the sugar upserts but echoes "added X (new)" vs "updated X" so a typo'd path self-diagnoses; `delete` is the only deletion spelling. Paths canonicalize against the RUNNING aggregator's root (SELF-rooted: a `wtf` engine writes `wtf.note`) with the forgiven-spelling echo (`:.note.author` -> `dz.note.author (canonical)`). `VALIDATED_KEYS` lets a feature register a validator consulted on EVERY write path, so sugar and verb reject identically (level registers in a later slice). Sub-key writes warn on casefold collisions (`.env-vars:DEBUG` vs `:debug` -- Windows environment exports collapse these). `AggregatorEngine` gains a lazily-constructed single `property_store` (one read-cache per process; lives beside the engine's config with the same isolation).

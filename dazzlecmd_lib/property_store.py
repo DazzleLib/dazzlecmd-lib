@@ -28,6 +28,26 @@ from dazzlecmd_lib.config import ConfigManager
 
 PROPERTIES_FILENAME = "properties.json"
 
+# The characters that can FOLLOW a node's key when a child continues it --
+# the first char of every path operator (':' begins ':', ':.', ':+'; '.'
+# begins '.'). Segment names cannot contain either, so this is a precise
+# family boundary.
+_OPERATOR_LEAD_CHARS = (".", ":")
+
+
+def key_in_family(key: str, prefix: str) -> bool:
+    """True iff ``key`` is ``prefix`` itself or a descendant of it.
+
+    Boundary-aware: the character AFTER the prefix must begin an operator,
+    so ``dz:.kit`` never captures ``dz:.kitchen`` (demonstrated in the
+    collabN review -- a raw ``startswith`` over-matches shared stems).
+    """
+    if not prefix:
+        return True  # the empty prefix is everyone's ancestor (list all)
+    if key == prefix:
+        return True
+    return key.startswith(prefix) and key[len(prefix)] in _OPERATOR_LEAD_CHARS
+
 
 class PropertyStore:
     """Read/write per-FQCN property values, backed by ``properties.json``.
@@ -77,8 +97,13 @@ class PropertyStore:
         return True
 
     def list_prefix(self, prefix) -> Dict[str, object]:
-        """Return ``{bangpath: value}`` for keys starting with ``prefix``.
+        """Return ``{bangpath: value}`` for keys in ``prefix``'s FAMILY.
 
+        BOUNDARY-AWARE (v2 contract R1.6): a key matches iff it equals
+        ``prefix`` or continues it AT AN OPERATOR -- so
+        ``list_prefix("dz:.kit")`` matches ``dz:.kit`` and
+        ``dz:.kit.channels.verbosity`` but NOT ``dz:.kitchen.note`` (a
+        raw ``startswith`` over-matches sibling names sharing a stem).
         Skips bookkeeping keys (``_schema_version`` etc.). Useful for
         reading a node's whole property family, e.g.
         ``list_prefix("dz:.kit.channels")``.
@@ -86,5 +111,5 @@ class PropertyStore:
         return {
             k: v
             for k, v in self._cm.read().items()
-            if k.startswith(prefix) and not k.startswith("_")
+            if not k.startswith("_") and key_in_family(k, prefix)
         }

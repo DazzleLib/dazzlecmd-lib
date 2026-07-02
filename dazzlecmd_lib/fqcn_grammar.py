@@ -213,6 +213,76 @@ def parse_cli(
     return parse(text, implicit_root=implicit_root), trailing
 
 
+# --------------------------------------------------------------------------
+# Canonicalization (v2 contract R1.3) -- the first-segment FIBER_ROOTS rule.
+# --------------------------------------------------------------------------
+
+# The fiber-plane vocabulary that EXISTS today -- the interim registry for
+# canonicalization until SD-FQCN-2 derives the real tree (then this becomes
+# a derived view; a name ENTERING this set later needs `dz meta prop
+# migrate` to re-canonicalize forgiven keys -- ledger'd). Sources: the
+# verb_axis vocabulary (axes + levels-as-machinery) + `meta` (the canonical
+# verb namespace). ``level`` is deliberately EXCLUDED (C-3): it is the root
+# PROPERTY `<root>.level` (the foreground), so `:.level` must forgive to
+# the property plane; the LEVEL_CONTINUUM machinery node gets a fiber-plane
+# home when the tree is derived.
+FIBER_ROOTS = frozenset({
+    "kit", "tool", "aggregator",           # levels-as-machinery (the flagship `:.kit.channels...`)
+    "verb", "meta",                        # the verb space + the meta verb namespace
+    "channels",                            # the output layer node
+    "management", "activation", "loading", # the verb axes
+    "membership", "projection", "visibility", "mode",
+})
+
+
+def canonicalize(
+    text: str,
+    implicit_root: Optional[str] = None,
+    fiber_roots: frozenset = FIBER_ROOTS,
+) -> Tuple[str, bool]:
+    """Return ``(canonical_text, was_forgiven)`` for a path token.
+
+    THE RULE (first-segment FIBER_ROOTS; v2 contract R1.3): a ``:.``-led
+    path whose FIRST segment is NOT fiber-plane vocabulary is the user's
+    muscle-memory spelling of a PROPERTY path -- the WHOLE path forgives
+    to the property plane by rewriting only the leading ``:.`` to ``.``
+    (``:.note.author`` -> ``.note.author``; sub-keys preserved:
+    ``:.env-vars:DEBUG`` -> ``.env-vars:DEBUG``). A first segment IN
+    ``fiber_roots`` passes verbatim (``:.kit.channels.verbosity``).
+    Interior ``:.``/``:+`` after a forgiven first segment ERROR on the
+    re-parse (the property plane rejects them -- don't guess).
+
+    The caller ECHOES the canonical form when ``was_forgiven`` (AC-11:
+    the whole rewritten path, case untouched).
+
+    Forgiveness happens at the TEXT level, BEFORE parsing: the
+    un-forgiven spelling may be unparseable precisely because it is in
+    the wrong plane (``:.env-vars:DEBUG`` -- an uppercase sub-key is only
+    legal after a ``.`` step, so the fiber spelling cannot parse). The
+    rewrite moves the path into the property plane; the subsequent parse
+    then enforces that plane's rules on the remainder (interior
+    ``:.``/``:+`` error -- don't guess).
+
+    Returns canonical TEXT (root included when implicit_root supplied).
+    """
+    if not isinstance(text, str) or not text:
+        raise FQCNParseError(f"empty or non-string path: {text!r}")
+
+    if implicit_root is not None and _match_operator(text, 0) is not None:
+        text = implicit_root + text
+
+    # A path whose FIRST step is ':.' with a first segment OUTSIDE the
+    # fiber vocabulary forgives to the property plane (leading ':.' -> '.').
+    m = re.match(rf"({_NAME}){re.escape(OP_FIBER)}({_NAME})", text)
+    if m is not None and m.group(2) not in fiber_roots:
+        forgiven_text = m.group(1) + OP_PROP + text[m.end(1) + len(OP_FIBER):]
+        parsed = parse(forgiven_text)  # may raise: interior :./:+ illegal
+        return unparse(parsed), True
+
+    parsed = parse(text)
+    return unparse(parsed), False
+
+
 # The planes a segment can live on (see segment_planes).
 PLANE_ENTITY = "entity"
 PLANE_FIBER = "fiber"

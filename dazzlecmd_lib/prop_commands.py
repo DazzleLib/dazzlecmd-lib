@@ -120,7 +120,11 @@ def cmd_set(
             file=sys.stderr,
         )
         return 1
-    value = parse_property_value(value_token, named_ranks=named_ranks)
+    try:
+        value = parse_property_value(value_token, named_ranks=named_ranks)
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 2
     code = _write(engine, key, value)
     if code is not None:
         return code
@@ -140,7 +144,11 @@ def cmd_add(
             file=sys.stderr,
         )
         return 1
-    value = parse_property_value(value_token, named_ranks=named_ranks)
+    try:
+        value = parse_property_value(value_token, named_ranks=named_ranks)
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 2
     code = _write(engine, key, value)
     if code is not None:
         return code
@@ -169,7 +177,11 @@ def cmd_upsert(
         return cmd_get(engine, path_text)
     key = _canonical(engine, path_text)
     existed = engine.property_store.get(key) is not None
-    value = parse_property_value(value_token, named_ranks=named_ranks)
+    try:
+        value = parse_property_value(value_token, named_ranks=named_ranks)
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 2
     code = _write(engine, key, value)
     if code is not None:
         return code

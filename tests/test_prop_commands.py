@@ -193,3 +193,97 @@ class TestEnginePropertyStore:
         assert s1 is s2
         s1.set("tst.x", 1)
         assert s2.get("tst.x") == 1
+
+
+class TestIntercept:
+    """3d": _intercept_path_form -- the C-5 order + the R1.1 taxonomy."""
+
+    def _engine(self, tmp_path):
+        from dazzlecmd_lib.engine import AggregatorEngine
+        return AggregatorEngine(
+            name="testagg", command="tst", config_dir=str(tmp_path))
+
+    def test_non_operator_led_passes_through(self, tmp_path):
+        e = self._engine(tmp_path)
+        assert e._intercept_path_form(["list"]) is None
+        assert e._intercept_path_form(["grep", "hello"]) is None
+        assert e._intercept_path_form([]) is None
+
+    def test_leading_double_dash_disables(self, tmp_path):
+        e = self._engine(tmp_path)
+        assert e._intercept_path_form(["--", ".note"]) is None
+
+    def test_property_get_and_upsert(self, tmp_path, capsys):
+        e = self._engine(tmp_path)
+        kind, code = e._intercept_path_form([".note", "hi"])
+        assert (kind, code) == ("result", 0)
+        assert e.property_store.get("tst.note") == "hi"  # SELF-rooted
+
+    def test_bare_negative_number_is_value(self, tmp_path, capsys):
+        e = self._engine(tmp_path)
+        kind, code = e._intercept_path_form([":.kit.channels.verbosity", "-3"])
+        assert (kind, code) == ("result", 0)
+        assert e.property_store.get("tst:.kit.channels.verbosity") == -3
+
+    def test_flag_led_value_needs_dashdash(self, tmp_path, capsys):
+        e = self._engine(tmp_path)
+        assert e._intercept_path_form([".note", "--force"]) == ("result", 2)
+        assert e._intercept_path_form([".note", "--", "--force"]) == ("result", 0)
+
+    def test_multiword_value_errors(self, tmp_path, capsys):
+        e = self._engine(tmp_path)
+        assert e._intercept_path_form([".note", "a", "b"]) == ("result", 2)
+
+    def test_supra_reserved(self, tmp_path, capsys):
+        e = self._engine(tmp_path)
+        assert e._intercept_path_form([":+kit"]) == ("result", 2)
+
+    def test_strip_and_dispatch_continue(self, tmp_path):
+        # AC-7 reworded: ':'-led pure-entity resolves through the entity
+        # plane -- the colon is stripped and normal dispatch continues.
+        e = self._engine(tmp_path)
+        kind, new_argv = e._intercept_path_form(["-v", ":core:safedel", "x"])
+        assert kind == "continue"
+        assert new_argv == ["-v", "core:safedel", "x"]
+
+    def test_dot_anywhere_is_property(self, tmp_path, capsys):
+        # C-4: ':grep.note' contains a dot -> property, never dispatch.
+        e = self._engine(tmp_path)
+        kind, code = e._intercept_path_form([":grep.note", "hi"])
+        assert (kind, code) == ("result", 0)
+        assert e.property_store.get("tst:grep.note") == "hi"
+
+    def test_operator_led_never_reaches_tools(self, tmp_path, capsys):
+        # AC-7's negative guarantee: '.'/':.'-led NEVER continue to dispatch.
+        e = self._engine(tmp_path)
+        for tok in (".x", ":.kit"):
+            result = e._intercept_path_form([tok])
+            assert result is not None and result[0] == "result"
+
+    def test_listing_takes_no_value(self, tmp_path, capsys):
+        e = self._engine(tmp_path)
+        assert e._intercept_path_form([":.", "junk"]) == ("result", 2)
+
+    def test_listing_forgives_prefix(self, tmp_path, capsys):
+        # C-5 (ii): 'dz :.note:.' lists under the canonical dz.note.
+        e = self._engine(tmp_path)
+        e.property_store.set("tst.note.author", "d")
+        kind, code = e._intercept_path_form([":.note:."])
+        assert (kind, code) == ("result", 0)
+        out = capsys.readouterr().out
+        assert "tst.note.author" in out
+
+    def test_sugar_flags_hook_receives_flags(self, tmp_path):
+        e = self._engine(tmp_path)
+        seen = []
+        e.sugar_flags_hook = seen.extend
+        e._intercept_path_form(["-v", "-q", ".x", "1"])
+        assert seen == ["-v", "-q"]
+
+    def test_value_flag_consumes_next_token(self, tmp_path):
+        e = self._engine(tmp_path)
+        seen = []
+        e.sugar_flags_hook = seen.extend
+        kind, code = e._intercept_path_form(["--show", "general:1", ".x", "1"])
+        assert (kind, code) == ("result", 0)
+        assert seen == ["--show", "general:1"]

@@ -755,6 +755,11 @@ class AggregatorEngine:
         # stale within a process). v2 contract R1.8.
         self._property_store = None
 
+        # The app's hook for pre-path global flags on the sugar intercept
+        # (`dz -v .note` -- the intercept bypasses argparse, so the app
+        # must be handed the flag tokens to init its output; AC-6).
+        self.sugar_flags_hook = None
+
         # Route user-override file lookup through the same per-aggregator
         # directory (config_dir/overrides). The DAZZLECMD_OVERRIDES_DIR
         # env var still takes precedence (test isolation).
@@ -1908,6 +1913,18 @@ class AggregatorEngine:
         if argv is None:
             argv = sys.argv[1:]
 
+        # The path-form intercept (v2 contract R1.1) -- SINGLE-SITED here,
+        # above the registry/escape-hatch fork, so both run paths share
+        # ONE first routing rule. Property forms return before discover()
+        # (they need no tool discovery); strip-and-dispatch rewrites argv
+        # and falls through to the normal flow.
+        intercepted = self._intercept_path_form(argv)
+        if intercepted is not None:
+            kind, payload = intercepted
+            if kind == "result":
+                return payload
+            argv = payload  # "continue": ':'-led entity path, colon stripped
+
         self.discover()
 
         # Choose dispatch path based on whether an explicit parser_builder
@@ -1915,6 +1932,124 @@ class AggregatorEngine:
         if self._build_parser is not None:
             return self._run_escape_hatch(argv)
         return self._run_registry(argv)
+
+    # Global flags that consume a SEPARATED value token -- the intercept's
+    # flag pre-pass must skip the value too (`dz --show general:1 .note`).
+    SUGAR_VALUE_FLAGS = ("--show",)
+
+    def _intercept_path_form(self, argv):
+        """Classify an operator-led first non-flag token (the C-5 order).
+
+        Returns ``None`` (no interception -- argparse flow proceeds),
+        ``("result", exit_code)`` (handled), or ``("continue", new_argv)``
+        (a pure ``:``-entity path: leading colon stripped -- the
+        strip-and-dispatch rule; the addressed object may run, GT12).
+
+        The taxonomy (R1.1): ``.``/``:.``-led -> the property surface
+        (get / upsert / listing); ``:``-led -> dot-anywhere = property,
+        all-colons = strip + normal dispatch; ``:+``-led -> reserved
+        error. A leading bare ``--`` disables the intercept (POSIX).
+        """
+        from dazzlecmd_lib import prop_commands
+        from dazzlecmd_lib.fqcn_grammar import (
+            FQCNParseError,
+            OP_SUPRA,
+            PLANE_ENTITY,
+            is_operator_led,
+            parse_cli,
+            segment_planes,
+            unparse,
+        )
+        from dazzlecmd_lib.property_values import is_negative_number_token
+
+        # -- step 1-2: the flag pre-pass ---------------------------------
+        flags = []
+        i = 0
+        n = len(argv)
+        while i < n:
+            tok = argv[i]
+            if tok == "--":
+                return None  # leading bare '--' disables the intercept
+            if isinstance(tok, str) and tok.startswith("-") and tok != "-":
+                flags.append(tok)
+                if tok in self.SUGAR_VALUE_FLAGS and i + 1 < n:
+                    flags.append(argv[i + 1])
+                    i += 1
+                i += 1
+                continue
+            break
+        if i >= n:
+            return None
+        first = argv[i]
+        if not is_operator_led(first):
+            return None
+        rest = list(argv[i + 1:])
+
+        # The app's chance to honor pre-path global flags (AC-6:
+        # `dz -v .note` respects -v). Set by the aggregator's main().
+        hook = getattr(self, "sugar_flags_hook", None)
+        if hook is not None:
+            hook(flags)
+
+        # -- step 5: classify --------------------------------------------
+        if first.startswith(OP_SUPRA):
+            print(
+                "Error: ':+' supra navigation is reserved (lands with "
+                "SD-7).",
+                file=sys.stderr,
+            )
+            return ("result", 2)
+
+        try:
+            parsed, trailing = parse_cli(first, implicit_root=self.command)
+        except FQCNParseError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return ("result", 2)
+
+        # trailing ':.' -> the plane listing (entity and property paths
+        # alike; the split already ran, C-5 step 3)
+        if trailing is not None:
+            if rest:
+                print(
+                    "Error: a ':.' listing takes no value.",
+                    file=sys.stderr,
+                )
+                return ("result", 2)
+            return ("result", prop_commands.cmd_list(self, unparse(parsed)))
+
+        planes = segment_planes(parsed)
+        if parsed.segments and all(p == PLANE_ENTITY for p in planes):
+            # all-colons = run (C-4): strip the leading ':' and rejoin
+            # the normal dispatch flow -- `dz :core:safedel` invokes it.
+            new_argv = list(argv)
+            new_argv[i] = first[1:]
+            return ("continue", new_argv)
+
+        # dot-anywhere = look: the property surface -----------------------
+        if not rest:
+            return ("result", prop_commands.cmd_upsert(self, first))
+        if rest[0] == "--":
+            value_toks = rest[1:]
+        elif rest[0].startswith("-") and not is_negative_number_token(rest[0]):
+            print(
+                f"Error: {rest[0]!r} looks like a flag -- put '--' before "
+                f"a '-'-led value (plain negative numbers need no '--').",
+                file=sys.stderr,
+            )
+            return ("result", 2)
+        else:
+            value_toks = rest
+        if len(value_toks) != 1:
+            print(
+                "Error: a property value is ONE token -- quote a "
+                "multi-word value.",
+                file=sys.stderr,
+            )
+            return ("result", 2)
+        if value_toks[0] == "--":
+            print("Error: '--' is not a settable value.", file=sys.stderr)
+            return ("result", 2)
+        return ("result", prop_commands.cmd_upsert(self, first, value_toks[0]))
 
     def _run_registry(self, argv):
         """Registry-driven run path (primary).

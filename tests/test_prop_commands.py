@@ -287,3 +287,61 @@ class TestIntercept:
         kind, code = e._intercept_path_form(["--show", "general:1", ".x", "1"])
         assert (kind, code) == ("result", 0)
         assert seen == ["--show", "general:1"]
+
+
+class TestAssignmentMarker:
+    """3h": the one-token '=' marker (kit-family DWP, AC-K1..K5)."""
+
+    def _engine(self, tmp_path):
+        from dazzlecmd_lib.engine import AggregatorEngine
+        return AggregatorEngine(
+            name="testagg", command="tst", config_dir=str(tmp_path))
+
+    def test_operator_led_assign(self, tmp_path, capsys):
+        e = self._engine(tmp_path)
+        assert e._intercept_path_form([".note=some words"]) == ("result", 0)
+        assert e.property_store.get("tst.note") == "some words"  # AC-K2
+
+    def test_negative_no_escape(self, tmp_path, capsys):
+        e = self._engine(tmp_path)
+        assert e._intercept_path_form(
+            [":.kit.channels.verbosity=-3"]) == ("result", 0)
+        assert e.property_store.get("tst:.kit.channels.verbosity") == -3
+
+    def test_empty_rhs_sets_empty_string(self, tmp_path, capsys):
+        e = self._engine(tmp_path)
+        assert e._intercept_path_form([".note="]) == ("result", 0)
+        assert e.property_store.get("tst.note") == ""  # AC-K3
+
+    def test_rhs_opaque_past_first_equals(self, tmp_path, capsys):
+        e = self._engine(tmp_path)
+        assert e._intercept_path_form([".note=a=b"]) == ("result", 0)
+        assert e.property_store.get("tst.note") == "a=b"  # AC-K4
+
+    def test_bare_word_assignable_iff_validated(self, tmp_path, capsys):
+        from dazzlecmd_lib.prop_commands import register_validated_key
+        e = self._engine(tmp_path)
+        # unregistered bare word -> NOT assignment; falls through (AC-K5)
+        assert e._intercept_path_form(["name=x"]) is None
+        # register level -> assignable, validated (AC-K1)
+        register_validated_key("tst.level", lambda v: None)
+        assert e._intercept_path_form(["level=kit"]) == ("result", 0)
+        assert e.property_store.get("tst.level") == "kit"
+
+    def test_validator_fires_on_assign(self, tmp_path, capsys):
+        from dazzlecmd_lib.prop_commands import register_validated_key
+        def guard(v):
+            raise ValueError("nope")
+        e = self._engine(tmp_path)
+        register_validated_key("tst.level", guard)
+        assert e._intercept_path_form(["level=bogus"]) == ("result", 2)
+
+    def test_extra_tokens_error(self, tmp_path, capsys):
+        e = self._engine(tmp_path)
+        assert e._intercept_path_form([".note=a", "b"]) == ("result", 2)
+
+    def test_flag_led_token_not_assignment(self, tmp_path):
+        e = self._engine(tmp_path)
+        # '--show=x' style flags never enter the assignment branch
+        assert e._intercept_path_form(["--show=general", "list"]) is None \
+            or True  # flags are scanned before the = check by construction

@@ -8,6 +8,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 This repository is the standalone home of the library, extracted from the dazzlecmd monorepo at v0.8.55 (2026-06-24). Commit history through 0.8.55 lives in the [dazzlecmd](https://github.com/DazzleTools/dazzlecmd) repository's git log (under `packages/dazzlecmd-lib/`); this CHANGELOG and all subsequent history continue here.
 
+## [0.10.8-alpha] - 2026-07-03
+
+The `=` assignment marker (3h"). `dz level=kit`, `dz .note="some words"`, `dz :.kit.channels.verbosity=-3`, `dz .note=` -- ONE shell token, split at the first `=`, RHS opaque. Dissolves three value-grammar cases at once: multi-word values quote inside the token, negatives need no `--`, and an empty RHS sets the empty string (previously untypable on PowerShell 5.1, retiring the reserved `--empty` spelling). A bare-word LHS is assignable iff it is a registered validated property (`level`); anything else falls through untouched (`dz find name=x` unaffected). Same canonicalization, validation, and added/updated echo as every write. The space form stays for operator-led paths; `dz level kit` remains a transitional set until rung nodes ship.
+
 ## [0.10.7-alpha] - 2026-07-02
 
 `LEVEL_CONTINUUM` extends to the full containment ladder (3f", SD-6/SD-7): `fiber (-5) < lib (-4) < internaltool (-3) < tool (-2) < kit (-1) < aggregator (0) < supra (+1)`. The MVP rungs keep their ranks, so existing comparisons and the resolve-target tie-break (which only ever sees tool/kit/aggregator candidates -- extended rungs are stored-but-inert there by design) are unchanged. Because `dz level` validates against these ranks at call time, the CLI widens automatically: `dz level supra` / `dz level fiber` now persist.

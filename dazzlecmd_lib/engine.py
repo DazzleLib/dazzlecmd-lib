@@ -1981,13 +1981,43 @@ class AggregatorEngine:
         if i >= n:
             return None
         first = argv[i]
+        rest = list(argv[i + 1:])
+        hook = getattr(self, "sugar_flags_hook", None)
+
+        # -- step 5a: the '=' assignment marker (kit-family DWP) ---------
+        # ONE token, split at the FIRST '='. The LHS must be a property
+        # address: operator-led, OR a reserved property-backed bare word
+        # (derived from VALIDATED_KEYS -- `level` registers at startup,
+        # so `dz level=kit` assigns; `dz name=x` falls through untouched).
+        if "=" in first and not first.startswith("-"):
+            lhs, rhs = first.split("=", 1)
+            target = None
+            if is_operator_led(lhs):
+                target = lhs
+            elif lhs and f"{self.command}.{lhs}" in prop_commands.VALIDATED_KEYS:
+                target = "." + lhs
+            if target is not None:
+                if rest:
+                    print(
+                        "Error: an '=' assignment is one token -- quote "
+                        "the value inside it (dz .note=\"some words\").",
+                        file=sys.stderr,
+                    )
+                    return ("result", 2)
+                if hook is not None:
+                    hook(flags)
+                try:
+                    return ("result",
+                            prop_commands.cmd_assign(self, target, rhs))
+                except FQCNParseError as exc:
+                    print(f"Error: {exc}", file=sys.stderr)
+                    return ("result", 2)
+
         if not is_operator_led(first):
             return None
-        rest = list(argv[i + 1:])
 
         # The app's chance to honor pre-path global flags (AC-6:
         # `dz -v .note` respects -v). Set by the aggregator's main().
-        hook = getattr(self, "sugar_flags_hook", None)
         if hook is not None:
             hook(flags)
 

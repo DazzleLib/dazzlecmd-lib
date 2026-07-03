@@ -192,6 +192,36 @@ def cmd_upsert(
     return 0
 
 
+def cmd_assign(
+    engine, path_text: str, rhs_text: str,
+    named_ranks: Optional[Mapping[str, int]] = None,
+) -> int:
+    """The ``=`` assignment marker (``dz level=kit`` / ``dz .note="a b"``
+    / ``dz .note=`` -- the kit-family DWP, 2026-07-03). One shell token,
+    split by the caller at the FIRST ``=``; the RHS is opaque text. An
+    EMPTY RHS sets the empty string (the one value the space form cannot
+    express -- PS 5.1 drops bare ``""``). Same canonicalization,
+    validation, and added/updated echo as every other write."""
+    key = _canonical(engine, path_text)
+    existed = engine.property_store.get(key) is not None
+    if rhs_text == "":
+        value: Any = ""
+    else:
+        try:
+            value = parse_property_value(rhs_text, named_ranks=named_ranks)
+        except ValueError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return 2
+    code = _write(engine, key, value)
+    if code is not None:
+        return code
+    if existed:
+        print(f"updated {key} = {value!r}")
+    else:
+        print(f"added {key} = {value!r} (new)")
+    return 0
+
+
 def cmd_list(engine, path_text: Optional[str] = None) -> int:
     """The listing form (``dz :.`` / ``dz :.kit:.`` / ``prop list``):
     boundary-aware family listing of a node's plane -- properties and

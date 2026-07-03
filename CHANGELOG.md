@@ -8,6 +8,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 This repository is the standalone home of the library, extracted from the dazzlecmd monorepo at v0.8.55 (2026-06-24). Commit history through 0.8.55 lives in the [dazzlecmd](https://github.com/DazzleTools/dazzlecmd) repository's git log (under `packages/dazzlecmd-lib/`); this CHANGELOG and all subsequent history continue here.
 
+## [0.10.9-alpha] - 2026-07-03
+
+Field-test fix: when a JSON-shaped value (leading `[` or `{`) fails to parse and is stored as a plain string, the write now prints a stderr note explaining why and how to escape -- cmd.exe's C-runtime argv rules strip unescaped double quotes, so `dz .x=["a","b"]` arrives as `[a,b]` (the correct cmd spelling is `dz .x=[\"a\",\"b\"]`; single quotes are literal characters on cmd). No behavior change to the stored value; the degradation is just no longer silent.
+
 ## [0.10.8-alpha] - 2026-07-03
 
 The `=` assignment marker (3h"). `dz level=kit`, `dz .note="some words"`, `dz :.kit.channels.verbosity=-3`, `dz .note=` -- ONE shell token, split at the first `=`, RHS opaque. Dissolves three value-grammar cases at once: multi-word values quote inside the token, negatives need no `--`, and an empty RHS sets the empty string (previously untypable on PowerShell 5.1, retiring the reserved `--empty` spelling). A bare-word LHS is assignable iff it is a registered validated property (`level`); anything else falls through untouched (`dz find name=x` unaffected). Same canonicalization, validation, and added/updated echo as every write. The space form stays for operator-led paths; `dz level kit` remains a transitional set until rung nodes ship.

@@ -345,3 +345,17 @@ class TestAssignmentMarker:
         # '--show=x' style flags never enter the assignment branch
         assert e._intercept_path_form(["--show=general", "list"]) is None \
             or True  # flags are scanned before the = check by construction
+
+
+class TestJsonShapeHint:
+    """cmd.exe strips unescaped quotes ([\"a\"] arrives as [a]) -- the
+    write must SAY it stored a string rather than degrade silently."""
+
+    def test_stripped_json_hints(self, engine, capsys):
+        cmd_upsert(engine, ".x", "[a,b]")
+        assert "plain STRING" in capsys.readouterr().err
+
+    def test_real_json_no_hint(self, engine, capsys):
+        cmd_upsert(engine, ".x", '["a","b"]')
+        assert engine.property_store.get("dz.x") == ["a", "b"]
+        assert "plain STRING" not in capsys.readouterr().err

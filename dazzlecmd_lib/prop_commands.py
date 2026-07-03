@@ -93,6 +93,17 @@ def _write(engine, key: str, value: Any) -> Optional[int]:
             print(f"Error: {exc}", file=sys.stderr)
             return 2  # exit-2 parity with argparse choice errors (R1.7)
     _warn_casefold_collision(engine, key)
+    if isinstance(value, str) and value.lstrip()[:1] in ("[", "{"):
+        # Looks like JSON that didn't parse -- almost always the shell
+        # stripped the inner quotes (cmd.exe's C-runtime rules eat
+        # unescaped double quotes: [\"a\"] arrives as [a]). Stored as a
+        # plain string; say so instead of degrading silently.
+        print(
+            "note: stored as a plain STRING (not JSON) -- if you meant "
+            "JSON, escape the inner quotes for your shell "
+            '(cmd.exe: dz .x=[\\"a\\",\\"b\\"]).',
+            file=sys.stderr,
+        )
     engine.property_store.set(key, value)
     return None
 

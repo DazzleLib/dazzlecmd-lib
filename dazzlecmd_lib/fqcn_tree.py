@@ -44,12 +44,25 @@ def _default_mounts():
     from dazzlecmd_lib.contexts import KIT_PRESENCE_SPACE
     return {
         ":.meta:verb": VERB_SPACE,
-        ":.kit": KIT_PRESENCE_SPACE,
         ":.level": LEVEL_CONTINUUM,
+        # 2d (the canonical-node decision, 2026-07-04): the kit MACHINERY
+        # grafts UNDER the kit RUNG node -- one kit concept, one node.
+        # `:.kit` stays alive as an ALIAS (see ALIASES below): the
+        # flagship spelling `<root>:.kit.channels.verbosity` keeps
+        # resolving; touch-canonicalization re-homes stored keys lazily.
+        ":.level:kit": KIT_PRESENCE_SPACE,
     }
 
 
-def build_tree(root: str, mounts: Optional[Dict[str, Any]] = None):
+# alias path-prefix -> canonical path-prefix (relative to the root).
+# Prefix-aware: an alias rewrites ANY key extending it.
+DEFAULT_ALIASES = {
+    ":.kit": ":.level:kit",
+}
+
+
+def build_tree(root: str, mounts: Optional[Dict[str, Any]] = None,
+               aliases: Optional[Dict[str, str]] = None):
     """Derive the fiber-plane tree for the aggregator named ``root``
     (SELF-rooted: pass ``engine.command``). Returns an ``nx.DiGraph``
     whose node keys are canonical bang-paths and whose node attrs carry
@@ -91,9 +104,71 @@ def build_tree(root: str, mounts: Optional[Dict[str, Any]] = None):
                 g.add_edge(at, child)
             _graft(child, child_obj)
 
-    for base, obj in (mounts or _default_mounts()).items():
-        mount(base, obj)
+    # 2d: synthesize RUNG NODES first (the 2a finding: rungs are ranks,
+    # not children) so mounts may graft UNDER a rung (":.level:kit").
+    # Order: mount the plain continua, synthesize their rungs, then
+    # graft the remaining mounts (deepest bases last).
+    table = dict(mounts or _default_mounts())
+    for base in sorted(table, key=lambda b: b.count(":")):
+        mount(base, table[base])
+        _synthesize_rungs(g)
+    if aliases is None:
+        aliases = dict(DEFAULT_ALIASES) if mounts is None else {}
+    g.graph["aliases"] = {
+        f"{root}{a}": f"{root}{c}" for a, c in aliases.items()
+    }
     return g
+
+
+def _synthesize_rungs(g) -> None:
+    """Every Continuum node gains a child node PER RUNG (kind="rung").
+    On the level axis this yields the rung nodes (`:.level:kit`); on a
+    verb axis the rungs ARE the verb poles (`:.meta:verb:activation:enable`)
+    -- the verb-addressing scheme's verb nodes fall out of the same rule."""
+    from dazzle_lib.continuum import Continuum
+    for key in list(g.nodes):
+        obj = g.nodes[key].get("obj")
+        if isinstance(obj, Continuum):
+            for rung in obj.levels():
+                child = f"{key}:{rung}"
+                if child not in g:
+                    g.add_node(child, obj=None, kind="rung",
+                               axis=key, rank=obj.rank(rung))
+                    g.add_edge(key, child)
+
+
+def resolve_path(tree, path: str) -> str:
+    """Canonicalize ``path`` through the tree's alias table (prefix-aware:
+    `<root>:.kit.channels.verbosity` -> `<root>:.level:kit.channels...`).
+    Longest alias prefix wins; non-aliased paths return unchanged."""
+    aliases = tree.graph.get("aliases", {})
+    best = None
+    for alias in aliases:
+        if (path == alias or path.startswith(alias + ".")
+                or path.startswith(alias + ":")):
+            if best is None or len(alias) > len(best):
+                best = alias
+    if best is None:
+        return path
+    return aliases[best] + path[len(best):]
+
+
+def touch_canonicalize(tree, store, path: str):
+    """The lazy half of the schema/data/foreign-key doctrine: resolve
+    ``path`` through the aliases; if the STORE holds a value under the
+    OLD spelling, MOVE it to the canonical key (write-first, delete-second
+    -- the crash-safe MOVE ordering; canonical wins on any re-read, the
+    delete retries on the next touch). Returns (canonical_key, value)."""
+    canonical = resolve_path(tree, path)
+    value = store.get(canonical)
+    if canonical != path:
+        old = store.get(path)
+        if old is not None:
+            if value is None:
+                store.set(canonical, old)
+                value = old
+            store.delete(path)
+    return canonical, value
 
 
 def derive_channels(tree) -> Dict[str, ChannelInfo]:

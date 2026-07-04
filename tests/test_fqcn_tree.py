@@ -29,18 +29,20 @@ def store(tmp_path):
 class TestBuildTree:
     def test_mounts_exist_self_rooted(self, tree):
         # the verb-addressing scheme's intrinsic pair + the flagship home
+        # 2d: the kit machinery lives UNDER the rung node (canonical
+        # dz:.level:kit); ":.kit" is an ALIAS, not a node.
         for key in ("tst", "tst:.meta", "tst:.meta:verb",
-                    "tst:.kit", "tst:.level"):
+                    "tst:.level", "tst:.level:kit"):
             assert key in tree, key
 
     def test_real_axes_derived_not_listed(self, tree):
         # nodes exist because the OBJECTS exist (walked, not hand-listed)
         assert "tst:.meta:verb:activation" in tree
         assert "tst:.meta:verb:loading" in tree
-        assert "tst:.kit:visibility" in tree
+        assert "tst:.level:kit:visibility" in tree
 
     def test_nested_subspace_descends(self, tree):
-        assert "tst:.kit:visibility:visibility" in tree
+        assert "tst:.level:kit:visibility:visibility" in tree
 
     def test_node_attrs_carry_the_live_object(self, tree):
         from dazzle_lib.continuum import Continuum
@@ -137,3 +139,86 @@ class TestRelocatability:
         assert "tst:.verb:activation" in derive_channels(g)
         store.set("tst:.verb.channels.verbosity", -2)
         assert effective_channel_verbosity(g, store, "tst:.verb:activation") == -2
+
+
+class TestRungSynthesis:
+    """2d: rung nodes from ranks (the 2a finding) -- and verb POLES fall
+    out of the same rule on the verb axes."""
+
+    def test_level_rungs_are_nodes(self, tree):
+        for rung in ("fiber", "lib", "internaltool", "tool", "kit",
+                     "aggregator", "supra"):
+            key = f"tst:.level:{rung}"
+            assert key in tree, key
+            # rung-ness = the axis/rank attrs. `kind` stays "rung" for a
+            # plain rung but becomes the OBJECT's type when machinery
+            # grafts onto it (kit hosts KIT_PRESENCE_SPACE -- the
+            # one-node doctrine: rung node == machinery host).
+            assert tree.nodes[key]["axis"] == "tst:.level"
+            if rung == "kit":
+                assert tree.nodes[key]["kind"] == "ContinuumSpace"
+            else:
+                assert tree.nodes[key]["kind"] == "rung"
+
+    def test_verb_poles_are_rung_nodes(self, tree):
+        # the verb-addressing scheme's verb nodes, derived not listed
+        assert "tst:.meta:verb:activation:enable" in tree
+        assert "tst:.meta:verb:activation:disable" in tree
+        assert "tst:.meta:verb:loading:attach" in tree
+
+    def test_rung_carries_axis_and_rank(self, tree):
+        node = tree.nodes["tst:.level:kit"]
+        assert node["axis"] == "tst:.level"
+        assert isinstance(node["rank"], int)
+
+    def test_kit_machinery_grafts_under_the_rung(self, tree):
+        # ONE kit concept: the rung node is also the machinery's parent
+        assert "tst:.level:kit:visibility" in tree
+        assert list(tree.predecessors("tst:.level:kit:visibility")) == [
+            "tst:.level:kit"]
+
+
+class TestAliasesAndTouch:
+    """2d: prefix-aware alias resolution + touch-canonicalization (the
+    lazy half of the schema/data/foreign-key doctrine)."""
+
+    def test_flagship_spelling_resolves(self, tree):
+        from dazzlecmd_lib.fqcn_tree import resolve_path
+        assert resolve_path(tree, "tst:.kit.channels.verbosity") == \
+            "tst:.level:kit.channels.verbosity"
+        assert resolve_path(tree, "tst:.kit:visibility") == \
+            "tst:.level:kit:visibility"
+
+    def test_non_aliased_paths_unchanged(self, tree):
+        from dazzlecmd_lib.fqcn_tree import resolve_path
+        assert resolve_path(tree, "tst:.level:kit") == "tst:.level:kit"
+        assert resolve_path(tree, "tst.note") == "tst.note"
+        # no false prefix match ("...kitchen" is NOT ":.kit" + extension)
+        assert resolve_path(tree, "tst:.kitchen.x") == "tst:.kitchen.x"
+
+    def test_touch_canonicalize_moves_the_key(self, tree, store):
+        from dazzlecmd_lib.fqcn_tree import touch_canonicalize
+        # the 2d AC: set at the OLD aliased address...
+        store.set("tst:.kit.channels.verbosity", -3)
+        key, value = touch_canonicalize(
+            tree, store, "tst:.kit.channels.verbosity")
+        # ...one touch: canonical key holds it, the old key is GONE
+        assert key == "tst:.level:kit.channels.verbosity"
+        assert value == -3
+        assert store.get("tst:.level:kit.channels.verbosity") == -3
+        assert store.get("tst:.kit.channels.verbosity") is None
+
+    def test_touch_canonical_wins_over_stale_old(self, tree, store):
+        from dazzlecmd_lib.fqcn_tree import touch_canonicalize
+        store.set("tst:.level:kit.channels.verbosity", 2)   # canonical
+        store.set("tst:.kit.channels.verbosity", -4)        # stale old
+        key, value = touch_canonicalize(
+            tree, store, "tst:.kit.channels.verbosity")
+        assert value == 2                                    # canonical wins
+        assert store.get("tst:.kit.channels.verbosity") is None  # cleaned
+
+    def test_cascade_through_the_grafted_machinery(self, tree, store):
+        # quieting the RUNG node squelches the machinery beneath it
+        store.set("tst:.level:kit.channels.verbosity", -2)
+        assert effective_channel_verbosity(
+            tree, store, "tst:.level:kit:visibility:visibility") == -2

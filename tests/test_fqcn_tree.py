@@ -222,3 +222,32 @@ class TestAliasesAndTouch:
         store.set("tst:.level:kit.channels.verbosity", -2)
         assert effective_channel_verbosity(
             tree, store, "tst:.level:kit:visibility:visibility") == -2
+
+
+class TestCanonicalizationInvariant:
+    """THE CORRECTIVE (postmortem 2026-07-04): every derived-tree node's
+    canonical path must canonicalize to ITSELF -- identity over the whole
+    tree. This single invariant would have caught the ':.level:kit'
+    forgiveness misfire the moment 2d synthesized rung nodes: example
+    vectors pin decisions at creation-time; an invariant over the DERIVED
+    structure re-validates every prior decision each time the vocabulary
+    changes."""
+
+    def test_every_tree_node_is_canonical_fixed_point(self, tree):
+        from dazzlecmd_lib.fqcn_grammar import canonicalize, FQCNParseError
+        misfires = []
+        for key in tree.nodes:
+            try:
+                canon, forgiven = canonicalize(key)
+            except FQCNParseError as exc:
+                misfires.append((key, f"unparseable: {exc}"))
+                continue
+            if canon != key or forgiven:
+                misfires.append((key, f"-> {canon} (forgiven={forgiven})"))
+        assert not misfires, misfires
+
+    def test_every_alias_resolves_into_the_tree(self, tree):
+        from dazzlecmd_lib.fqcn_tree import resolve_path
+        for alias, canonical in tree.graph["aliases"].items():
+            assert canonical in tree, (alias, canonical)
+            assert resolve_path(tree, alias) == canonical

@@ -46,9 +46,13 @@ class TestFiberDescent:
 
 class TestFoldCascade:
     def test_fold_composes_down_the_tree(self):
-        # the cascade prototype: min-verbosity accumulates over depth
-        result = fold(outer := Continuum(
+        # the cascade prototype: min-verbosity accumulates over depth.
+        # SEMANTICS (pinned empirically): `leaf` fires at CHILDLESS nodes,
+        # `combine` only at INTERNAL nodes -- so a 2-node chain = ONE
+        # combine. Exactly the cascade's shape: each internal level gets
+        # one chance to tighten its subtree.
+        result = fold(Continuum(
             "o", ranks={"x": 0},
             fibers={"x": Continuum("i", ranks={"y": 0})}),
             lambda n: 0, lambda n, kids: min([0] + list(kids)) - 1)
-        assert result == -2  # two levels of combine
+        assert result == -1  # one internal node -> one combine

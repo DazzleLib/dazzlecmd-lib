@@ -359,3 +359,47 @@ class TestJsonShapeHint:
         cmd_upsert(engine, ".x", '["a","b"]')
         assert engine.property_store.get("dz.x") == ["a", "b"]
         assert "plain STRING" not in capsys.readouterr().err
+
+
+class TestAssignmentSpacingForgiveness:
+    """2026-07-04: all spacings of '=' normalize to the same assignment."""
+
+    def _engine(self, tmp_path):
+        from dazzlecmd_lib.engine import AggregatorEngine
+        from dazzlecmd_lib.prop_commands import register_validated_key
+        e = AggregatorEngine(name="t", command="tst", config_dir=str(tmp_path))
+        register_validated_key("tst.level", lambda v: None)
+        return e
+
+    def test_all_four_spacings_equal(self, tmp_path, capsys):
+        for argv in (["level=kit"], ["level=", "kit"],
+                     ["level", "=kit"], ["level", "=", "kit"]):
+            e = self._engine(tmp_path)
+            e.property_store.delete("tst.level")
+            assert e._intercept_path_form(argv) == ("result", 0), argv
+            assert e.property_store.get("tst.level") == "kit", argv
+
+    def test_operator_led_spaced(self, tmp_path, capsys):
+        e = self._engine(tmp_path)
+        assert e._intercept_path_form([".note", "=", "hi"]) == ("result", 0)
+        assert e.property_store.get("tst.note") == "hi"
+
+    def test_trailing_bare_equals_sets_empty(self, tmp_path, capsys):
+        e = self._engine(tmp_path)
+        assert e._intercept_path_form([".x", "="]) == ("result", 0)
+        assert e.property_store.get("tst.x") == ""
+
+    def test_one_token_empty_still_works(self, tmp_path, capsys):
+        # AC-K3 regression guard: "dz .x=" alone.
+        e = self._engine(tmp_path)
+        assert e._intercept_path_form([".x="]) == ("result", 0)
+        assert e.property_store.get("tst.x") == ""
+
+    def test_unregistered_bare_word_untouched(self, tmp_path):
+        e = self._engine(tmp_path)
+        assert e._intercept_path_form(["find", "=", "x"]) is None
+        assert e._intercept_path_form(["name=x"]) is None
+
+    def test_extra_tokens_error(self, tmp_path, capsys):
+        e = self._engine(tmp_path)
+        assert e._intercept_path_form(["level", "=", "kit", "extra"]) == ("result", 2)

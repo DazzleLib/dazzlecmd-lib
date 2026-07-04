@@ -8,6 +8,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 This repository is the standalone home of the library, extracted from the dazzlecmd monorepo at v0.8.55 (2026-06-24). Commit history through 0.8.55 lives in the [dazzlecmd](https://github.com/DazzleTools/dazzlecmd) repository's git log (under `packages/dazzlecmd-lib/`); this CHANGELOG and all subsequent history continue here.
 
+## [0.10.10-alpha] - 2026-07-04
+
+Forgiving `=` spacing: `dz level = kit`, `dz level= kit`, and `dz level =kit` all normalize to `dz level=kit` (the shell splits them into different token shapes; the intercept now reassembles up to three tokens into one assignment). Works for operator-led paths too (`dz .note = hi`). A trailing bare `=` sets the empty string, consistent with `lhs=`. Unregistered bare words still fall through untouched (`dz find = x` is not an assignment). One edge changed: `dz .note =` now sets empty rather than storing a literal `"="` -- to store a literal equals sign, use `dz .note="="`.
+
 ## [0.10.9-alpha] - 2026-07-03
 
 Field-test fix: when a JSON-shaped value (leading `[` or `{`) fails to parse and is stored as a plain string, the write now prints a stderr note explaining why and how to escape -- cmd.exe's C-runtime argv rules strip unescaped double quotes, so `dz .x=["a","b"]` arrives as `[a,b]` (the correct cmd spelling is `dz .x=[\"a\",\"b\"]`; single quotes are literal characters on cmd). No behavior change to the stored value; the degradation is just no longer silent.

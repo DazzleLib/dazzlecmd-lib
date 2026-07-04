@@ -1985,22 +1985,40 @@ class AggregatorEngine:
         hook = getattr(self, "sugar_flags_hook", None)
 
         # -- step 5a: the '=' assignment marker (kit-family DWP) ---------
-        # ONE token, split at the FIRST '='. The LHS must be a property
-        # address: operator-led, OR a reserved property-backed bare word
-        # (derived from VALIDATED_KEYS -- `level` registers at startup,
-        # so `dz level=kit` assigns; `dz name=x` falls through untouched).
-        if "=" in first and not first.startswith("-"):
-            lhs, rhs = first.split("=", 1)
+        # Canonical: ONE token, split at the FIRST '='. FORGIVING PARSE
+        # (user, 2026-07-04): the spaced spellings normalize to the same
+        # assignment -- `level = kit`, `level= kit`, `level =kit` all mean
+        # `level=kit` (the shell splits them into 1-3 argv tokens). The
+        # LHS must be a property address: operator-led, OR a reserved
+        # property-backed bare word (from VALIDATED_KEYS -- `level`
+        # registers at startup); anything else falls through untouched
+        # (`dz name=x`, `dz find = x`).
+        lhs = rhs = None
+        consumed = 0  # tokens consumed from `rest`
+        if not first.startswith("-"):
+            if "=" in first:
+                l, r = first.split("=", 1)
+                if r == "" and rest:
+                    lhs, rhs, consumed = l, rest[0], 1   # "lhs=" "value"
+                else:
+                    lhs, rhs = l, r                       # "lhs=value" / "lhs="
+            elif rest and rest[0] == "=":
+                lhs = first                               # "lhs" "=" ["value"]
+                rhs = rest[1] if len(rest) > 1 else ""
+                consumed = 2 if len(rest) > 1 else 1
+            elif rest and rest[0].startswith("="):
+                lhs, rhs, consumed = first, rest[0][1:], 1  # "lhs" "=value"
+        if lhs is not None:
             target = None
             if is_operator_led(lhs):
                 target = lhs
             elif lhs and f"{self.command}.{lhs}" in prop_commands.VALIDATED_KEYS:
                 target = "." + lhs
             if target is not None:
-                if rest:
+                if rest[consumed:]:
                     print(
-                        "Error: an '=' assignment is one token -- quote "
-                        "the value inside it (dz .note=\"some words\").",
+                        "Error: an assignment takes ONE value -- quote a "
+                        "multi-word value (dz .note=\"some words\").",
                         file=sys.stderr,
                     )
                     return ("result", 2)

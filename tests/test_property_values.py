@@ -51,12 +51,14 @@ class TestCanonicalize:
         with pytest.raises(FQCNParseError):
             canonicalize(":.note:.weird", implicit_root="dz")
 
-    def test_level_excluded_from_fiber_roots(self):
-        # C-3: level is the root PROPERTY; ':.level' forgives to '.level'.
-        assert "level" not in FIBER_ROOTS
+    def test_level_in_fiber_roots_post_2d(self):
+        # C-3 RETIRED (2026-07-04, the invariant's catch): the axis node
+        # is real; bare ':.level' is VERBATIM; the property keeps its
+        # three spellings (dz level / .level / level=).
+        assert "level" in FIBER_ROOTS
         text, forgiven = canonicalize(":.level", implicit_root="dz")
-        assert text == "dz.level"
-        assert forgiven is True
+        assert text == "dz:.level"
+        assert forgiven is False
 
     def test_property_led_needs_no_forgiveness(self):
         text, forgiven = canonicalize(".note", implicit_root="dz")
@@ -174,16 +176,16 @@ class TestAxisRungException:
         assert text == "dz:.level:kit.channels.verbosity"
         assert forgiven is False
 
-    def test_bare_level_still_forgives_to_the_property(self):
+    def test_bare_level_verbatim_post_2d(self):
         text, forgiven = canonicalize(":.level", implicit_root="dz")
-        assert text == "dz.level"
-        assert forgiven is True
+        assert text == "dz:.level"
+        assert forgiven is False
 
-    def test_non_rung_continuation_still_forgives(self):
-        # ':.level:bogus' -- 'bogus' is not a rung; property sub-key wins
+    def test_level_continuations_verbatim(self):
+        # level in FIBER_ROOTS: ALL continuations stay in the fiber plane
         text, forgiven = canonicalize(":.level:bogus", implicit_root="dz")
-        assert text == "dz.level:bogus"
-        assert forgiven is True
+        assert text == "dz:.level:bogus"
+        assert forgiven is False
 
     def test_env_vars_subkey_unaffected(self):
         text, forgiven = canonicalize(":.env-vars:DEBUG", implicit_root="dz")

@@ -156,3 +156,36 @@ class TestBoundaryAwareFamily:
             "dz:.kit": "node-value",
         }
         assert "dz:.kitchen.note" not in fam
+
+
+class TestAxisRungException:
+    """2026-07-04 field find: ':.level:kit' is the RUNG NODE (verbatim),
+    while ':.level' alone still forgives to the property -- the axis's
+    rung vocabulary is the discriminator syntax cannot provide."""
+
+    def test_rung_path_stays_verbatim(self):
+        text, forgiven = canonicalize(":.level:kit", implicit_root="dz")
+        assert text == "dz:.level:kit"
+        assert forgiven is False
+
+    def test_rung_with_property_chain_verbatim(self):
+        text, forgiven = canonicalize(
+            ":.level:kit.channels.verbosity", implicit_root="dz")
+        assert text == "dz:.level:kit.channels.verbosity"
+        assert forgiven is False
+
+    def test_bare_level_still_forgives_to_the_property(self):
+        text, forgiven = canonicalize(":.level", implicit_root="dz")
+        assert text == "dz.level"
+        assert forgiven is True
+
+    def test_non_rung_continuation_still_forgives(self):
+        # ':.level:bogus' -- 'bogus' is not a rung; property sub-key wins
+        text, forgiven = canonicalize(":.level:bogus", implicit_root="dz")
+        assert text == "dz.level:bogus"
+        assert forgiven is True
+
+    def test_env_vars_subkey_unaffected(self):
+        text, forgiven = canonicalize(":.env-vars:DEBUG", implicit_root="dz")
+        assert text == "dz.env-vars:DEBUG"
+        assert forgiven is True

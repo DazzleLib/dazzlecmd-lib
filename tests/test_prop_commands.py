@@ -403,3 +403,28 @@ class TestAssignmentSpacingForgiveness:
     def test_extra_tokens_error(self, tmp_path, capsys):
         e = self._engine(tmp_path)
         assert e._intercept_path_form(["level", "=", "kit", "extra"]) == ("result", 2)
+
+
+class TestPathFormHelp:
+    """Field find 2026-07-04: -h works on every spelling -- the property
+    path form answers with its usage card instead of a flag error."""
+
+    def _engine(self, tmp_path):
+        from dazzlecmd_lib.engine import AggregatorEngine
+        return AggregatorEngine(name="t", command="tst",
+                                config_dir=str(tmp_path))
+
+    def test_dash_h_on_property_path(self, tmp_path, capsys):
+        e = self._engine(tmp_path)
+        assert e._intercept_path_form([".note", "-h"]) == ("result", 0)
+        out = capsys.readouterr().out
+        assert "property path form" in out and "prop delete" in out
+
+    def test_help_shows_canonical_for_forgiven(self, tmp_path, capsys):
+        e = self._engine(tmp_path)
+        assert e._intercept_path_form([":.note", "--help"]) == ("result", 0)
+        assert "tst.note" in capsys.readouterr().out  # canonicalized header
+
+    def test_other_flags_still_guarded(self, tmp_path, capsys):
+        e = self._engine(tmp_path)
+        assert e._intercept_path_form([".note", "--force"]) == ("result", 2)

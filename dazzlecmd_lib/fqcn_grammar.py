@@ -235,6 +235,25 @@ FIBER_ROOTS = frozenset({
 })
 
 
+def _is_axis_rung_path(first_seg: str, tail: str) -> bool:
+    """The 2d exception to forgiveness (found in the field, 2026-07-04):
+    ``level`` is property-backed (so ``:.level`` forgives to ``.level``)
+    BUT its RUNGS are real fiber nodes -- ``:.level:kit`` must stay
+    VERBATIM (the rung node), never become the property sub-key
+    ``.level:kit``. Syntax cannot discriminate this from
+    ``:.env-vars:DEBUG`` (identical shape, opposite intent); the
+    discriminator is the axis's own rung VOCABULARY, consulted lazily
+    and cheaply (no tree build on the hot path). Tree-aware
+    canonicalization is the general successor (SD-FQCN-2 ledger)."""
+    if first_seg != "level" or not tail.startswith(OP_PATH):
+        return False
+    nm = _NAME_RE.match(tail, len(OP_PATH))
+    if nm is None:
+        return False
+    from dazzlecmd_lib.verb_axis import LEVEL_CONTINUUM
+    return nm.group(0) in LEVEL_CONTINUUM.ranks
+
+
 def canonicalize(
     text: str,
     implicit_root: Optional[str] = None,
@@ -274,7 +293,8 @@ def canonicalize(
     # A path whose FIRST step is ':.' with a first segment OUTSIDE the
     # fiber vocabulary forgives to the property plane (leading ':.' -> '.').
     m = re.match(rf"({_NAME}){re.escape(OP_FIBER)}({_NAME})", text)
-    if m is not None and m.group(2) not in fiber_roots:
+    if (m is not None and m.group(2) not in fiber_roots
+            and not _is_axis_rung_path(m.group(2), text[m.end():])):
         forgiven_text = m.group(1) + OP_PROP + text[m.end(1) + len(OP_FIBER):]
         parsed = parse(forgiven_text)  # may raise: interior :./:+ illegal
         return unparse(parsed), True

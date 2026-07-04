@@ -2074,6 +2074,26 @@ class AggregatorEngine:
             return ("continue", new_argv)
 
         # dot-anywhere = look: the property surface -----------------------
+        if rest and rest[0] in ("-h", "--help"):
+            # -h works on EVERY spelling (field find 2026-07-04): the
+            # path form answers with its own usage card. The full node
+            # card (dz info <path>) is the 2f surface.
+            from dazzlecmd_lib.fqcn_grammar import canonicalize
+            try:
+                canon, _ = canonicalize(first, implicit_root=self.command)
+            except FQCNParseError:
+                canon = first
+            print(f"{canon} -- the property path form:")
+            print(f"  {self.command} {first:<28} read the value")
+            print(f"  {self.command} {first} <value>          write "
+                  f"(or {first}=<value>)")
+            print(f"  {self.command} {first}:.                list the "
+                  f"node's plane")
+            print(f"  {self.command} prop delete {first}      remove "
+                  f"(the only deletion form)")
+            print(f"  {self.command} info <name>              the full "
+                  f"card (levels, verbs, properties)")
+            return ("result", 0)
         if not rest:
             return ("result", prop_commands.cmd_upsert(self, first))
         if rest[0] == "--":

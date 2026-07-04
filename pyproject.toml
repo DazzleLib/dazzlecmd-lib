@@ -44,6 +44,12 @@ dependencies = [
     # -- one home for file machinery rather than re-implementing it per module.
     # filekit is the canonical home of that code. >=0.2.4 ships atomic_write_*.
     "dazzle-filekit>=0.2.4",
+    # The derived FQCN tree (fqcn_tree.py) is built on a NetworkX DiGraph
+    # BEHIND the module's seam; the nx API subset consumed there is the
+    # interface contract dazzle-graph-lib will implement (the swap is an
+    # import change). Imported LAZILY -- the CLI's property fast paths
+    # never load it.
+    "networkx>=3.0",
     # The trash engine's per-volume routing (_volumes) needs Windows drive-type
     # detection (network/removable/fixed) for zero-copy same-volume rename;
     # unctools provides it. Windows-only -- POSIX uses the in-module stubs.

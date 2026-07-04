@@ -116,3 +116,24 @@ class TestSeamRiders:
         object.__setattr__(a, "fibers", {"p": b})  # a true cycle
         g = build_tree("tst", mounts={":.cyc": b})
         assert "tst:.cyc" in g  # terminated, tree built
+
+
+class TestRelocatability:
+    """The user's architecture probe (2026-07-04): 'one of the tests of
+    how good our system is, is how easy it is to move a continuum like
+    verb to some other area with minimal pain.' PINNED as a feature: a
+    move is ONE mount-table entry -- the tree, channels, and cascade all
+    derive identically at the new address. (The real-world costs live
+    OUTSIDE the code: persisted store keys ride `dz meta prop migrate`,
+    and 2d's alias edges make the OLD address keep resolving.)"""
+
+    def test_moving_the_verb_space_is_one_mount_edit(self, store):
+        from dazzlecmd_lib.verb_axis import VERB_SPACE
+        # relocate: verb moves OUT of meta to a top-level fiber home
+        g = build_tree("tst", mounts={":.verb": VERB_SPACE})
+        assert "tst:.verb:activation" in g          # derived at the new home
+        assert "tst:.meta:verb:activation" not in g  # gone from the old one
+        # channels + cascade work at the new address untouched:
+        assert "tst:.verb:activation" in derive_channels(g)
+        store.set("tst:.verb.channels.verbosity", -2)
+        assert effective_channel_verbosity(g, store, "tst:.verb:activation") == -2

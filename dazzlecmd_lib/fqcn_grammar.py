@@ -222,10 +222,11 @@ def parse_cli(
 # a derived view; a name ENTERING this set later needs `dz meta prop
 # migrate` to re-canonicalize forgiven keys -- ledger'd). Sources: the
 # verb_axis vocabulary (axes + levels-as-machinery) + `meta` (the canonical
-# verb namespace). ``level`` is deliberately EXCLUDED (C-3): it is the root
-# PROPERTY `<root>.level` (the foreground), so `:.level` must forgive to
-# the property plane; the LEVEL_CONTINUUM machinery node gets a fiber-plane
-# home when the tree is derived.
+# verb namespace). HISTORY: ``level`` was originally EXCLUDED (C-3, so
+# `:.level` forgave to the property) -- RETIRED 2026-07-04 when 2d made the
+# axis node real (the canonicalization-identity invariant caught the axis
+# being unaddressable); the property keeps its three spellings and the
+# axis node's bare VALUE aliases to it (prop_commands.NODE_VALUE_ALIASES).
 FIBER_ROOTS = frozenset({
     "kit", "tool", "aggregator",           # levels-as-machinery (the flagship `:.kit.channels...`)
     "verb", "meta",                        # the verb space + the meta verb namespace

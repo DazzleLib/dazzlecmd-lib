@@ -428,3 +428,52 @@ class TestPathFormHelp:
     def test_other_flags_still_guarded(self, tmp_path, capsys):
         e = self._engine(tmp_path)
         assert e._intercept_path_form([".note", "--force"]) == ("result", 2)
+
+
+class TestNodeValueAlias:
+    """F2 (sweep 2026-07-04): a fiber AXIS NODE whose bare value is
+    property-backed routes reads/writes to the property -- validated,
+    no inert shadow key. Exact-key only."""
+
+    def _engine(self, tmp_path):
+        from dazzlecmd_lib.engine import AggregatorEngine
+        from dazzlecmd_lib import prop_commands
+        e = AggregatorEngine(name="t", command="tst",
+                             config_dir=str(tmp_path))
+        prop_commands.register_node_value_alias("tst:.level", "tst.level")
+        def _validator(v):
+            if v not in ("kit", "tool"):
+                raise ValueError("not a level")
+        prop_commands.register_validated_key("tst.level", _validator)
+        return e
+
+    def test_aliased_write_validates(self, tmp_path, capsys):
+        e = self._engine(tmp_path)
+        assert e._intercept_path_form([":.level=bogus"]) == ("result", 2)
+        assert e.property_store.get("tst:.level") is None  # NO shadow key
+
+    def test_aliased_write_lands_on_the_property(self, tmp_path, capsys):
+        e = self._engine(tmp_path)
+        assert e._intercept_path_form([":.level=kit"]) == ("result", 0)
+        assert e.property_store.get("tst.level") == "kit"
+        assert e.property_store.get("tst:.level") is None
+
+    def test_aliased_read(self, tmp_path, capsys):
+        e = self._engine(tmp_path)
+        e.property_store.set("tst.level", "tool")
+        assert e._intercept_path_form([":.level"]) == ("result", 0)
+        assert "tool" in capsys.readouterr().out
+
+    def test_rung_and_property_paths_untouched(self, tmp_path, capsys):
+        e = self._engine(tmp_path)
+        assert e._intercept_path_form([":.level:kit=x"]) == ("result", 0)
+        assert e.property_store.get("tst:.level:kit") == "x"  # rung key intact
+
+
+class TestDanglingDoubleDash:
+    def test_f4_distinct_message(self, tmp_path, capsys):
+        from dazzlecmd_lib.engine import AggregatorEngine
+        e = AggregatorEngine(name="t", command="tst",
+                             config_dir=str(tmp_path))
+        assert e._intercept_path_form([".note", "--"]) == ("result", 2)
+        assert "missing value after '--'" in capsys.readouterr().err

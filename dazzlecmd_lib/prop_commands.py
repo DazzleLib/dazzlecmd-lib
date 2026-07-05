@@ -48,13 +48,32 @@ def register_validated_key(key: str, validator: Callable[[Any], None]) -> None:
     VALIDATED_KEYS[key] = validator
 
 
+# The one-node value aliases: a fiber-plane AXIS NODE whose bare VALUE is
+# backed by a property (the axis's value IS the property -- e.g.
+# `<root>:.level` reads/writes `<root>.level`, so `dz :.level=bogus` hits
+# the level VALIDATOR instead of silently storing an inert shadow key --
+# the 2026-07-04 sweep's F2 finding). EXACT-key only: `:.level:kit` (the
+# rung) and `:.level.foo` (a property ON the axis node) are untouched.
+NODE_VALUE_ALIASES: Dict[str, str] = {}
+
+
+def register_node_value_alias(alias_key: str, target_key: str) -> None:
+    """Register a bare-node value alias (see NODE_VALUE_ALIASES)."""
+    NODE_VALUE_ALIASES[alias_key] = target_key
+
+
 def _canonical(engine, path_text: str) -> str:
     """Canonicalize ``path_text`` against the RUNNING aggregator's root
     (SELF-rooted -- ``engine.command``, never a hardcoded ``dz``; R1.2),
-    echoing the canonical form once when the spelling was forgiven."""
+    echoing the canonical form once when the spelling was forgiven,
+    then applying the one-node VALUE aliases (exact-key)."""
     text, forgiven = canonicalize(path_text, implicit_root=engine.command)
     if forgiven:
         print(f"-> {text} (canonical)")
+    target = NODE_VALUE_ALIASES.get(text)
+    if target is not None:
+        print(f"-> {target} (the node's value)")
+        return target
     return text
 
 def _warn_casefold_collision(engine, key: str) -> None:

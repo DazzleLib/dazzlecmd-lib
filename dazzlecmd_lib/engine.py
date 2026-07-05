@@ -2098,6 +2098,13 @@ class AggregatorEngine:
             return ("result", prop_commands.cmd_upsert(self, first))
         if rest[0] == "--":
             value_toks = rest[1:]
+            if not value_toks:
+                print(
+                    "Error: missing value after '--' (write "
+                    f"`{self.command} {first} -- <value>`).",
+                    file=sys.stderr,
+                )
+                return ("result", 2)
         elif rest[0].startswith("-") and not is_negative_number_token(rest[0]):
             print(
                 f"Error: {rest[0]!r} looks like a flag -- put '--' before "

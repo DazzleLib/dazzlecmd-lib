@@ -251,3 +251,50 @@ class TestCanonicalizationInvariant:
         for alias, canonical in tree.graph["aliases"].items():
             assert canonical in tree, (alias, canonical)
             assert resolve_path(tree, alias) == canonical
+
+
+class TestNumericAddressingGaps:
+    """The cross-layer probe (user question 2026-07-05): does the numeric
+    address system hold for ANONYMOUS additions end-to-end? Answer today:
+    NO at two seams -- both pinned here so they must FLIP when the
+    C2/B3 slice lands (these tests are the gap's tripwire)."""
+
+    def test_fraction_anon_rung_is_unaddressable_today(self):
+        # B3-PREREQUISITE: "5/2" contains '/', illegal in the segment
+        # grammar -- the anon rung's tree node cannot be canonicalized.
+        # When B3's N/M rank-segment allowance lands, REWRITE this test
+        # to assert the address RESOLVES.
+        from dazzle_lib.continuum import Continuum
+        from dazzlecmd_lib.fqcn_grammar import canonicalize, FQCNParseError
+        v = Continuum("kit", ranks={"config": 2, "debug": 3})
+        v = v.densify_between("config", "debug")  # anon "5/2"
+        g = build_tree("tst", mounts={":.kit": v})
+        assert "tst:.kit:5/2" in g  # the node EXISTS...
+        with pytest.raises(FQCNParseError):
+            canonicalize("tst:.kit:5/2")  # ...but is UNADDRESSABLE (the gap)
+
+    def test_integer_anon_rung_parses_under_vocabulary_mounts(self):
+        # integers are legal names -- an int-anon rung under an
+        # IN-VOCABULARY mount is already addressable (name-form).
+        from dazzle_lib.continuum import Continuum
+        from dazzlecmd_lib.fqcn_grammar import canonicalize
+        m = Continuum("kit", ranks={"remove": -1, "add": 1})
+        m = m.densify_between("remove", "add")  # anon "0"
+        g = build_tree("tst", mounts={":.kit": m})
+        assert "tst:.kit:0" in g
+        canon, forgiven = canonicalize("tst:.kit:0")
+        assert canon == "tst:.kit:0" and forgiven is False
+
+    def test_custom_mounts_misfire_the_static_vocabulary(self):
+        # The KNOWN interim limitation, demonstrated: a mount name
+        # OUTSIDE FIBER_ROOTS forgives to the property plane -- the
+        # tree-aware-canonicalization successor's tripwire (flip when
+        # canonicalize consults the tree instead of the frozenset).
+        from dazzle_lib.continuum import Continuum
+        from dazzlecmd_lib.fqcn_grammar import canonicalize
+        v = Continuum("verbosity", ranks={"a": 0, "b": 1})
+        g = build_tree("tst", mounts={":.verbosity": v})
+        assert "tst:.verbosity" in g          # a REAL node...
+        canon, forgiven = canonicalize("tst:.verbosity")
+        assert forgiven is True               # ...that today forgives AWAY
+        assert canon == "tst.verbosity"

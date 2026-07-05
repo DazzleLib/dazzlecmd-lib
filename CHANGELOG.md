@@ -8,6 +8,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 This repository is the standalone home of the library, extracted from the dazzlecmd monorepo at v0.8.55 (2026-06-24). Commit history through 0.8.55 lives in the [dazzlecmd](https://github.com/DazzleTools/dazzlecmd) repository's git log (under `packages/dazzlecmd-lib/`); this CHANGELOG and all subsequent history continue here.
 
+## [0.10.16-alpha] - 2026-07-05
+
+The tester's two HOLD bugs on the value-alias surface, fixed. (1) `dz :.level:.` family listings no longer get re-routed by the node-value alias -- a listing is about the node's CHILDREN (the fiber family under `dz:.level`), never the node's value; rung-family entries list correctly again. (2) `register_key_default` arrives (the layered read's system-default layer, first customer): a key registered with a default answers `<default> (default)` with exit 0 when unset -- so `dz level` and `dz :.level` agree before, during, AND after a delete instead of one showing the gentle default while the other errored.
+
 ## [0.10.10-alpha] - 2026-07-04
 
 Forgiving `=` spacing: `dz level = kit`, `dz level= kit`, and `dz level =kit` all normalize to `dz level=kit` (the shell splits them into different token shapes; the intercept now reassembles up to three tokens into one assignment). Works for operator-led paths too (`dz .note = hi`). A trailing bare `=` sets the empty string, consistent with `lhs=`. Unregistered bare words still fall through untouched (`dz find = x` is not an assignment). One edge changed: `dz .note =` now sets empty rather than storing a literal `"="` -- to store a literal equals sign, use `dz .note="="`.

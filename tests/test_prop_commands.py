@@ -477,3 +477,49 @@ class TestDanglingDoubleDash:
                              config_dir=str(tmp_path))
         assert e._intercept_path_form([".note", "--"]) == ("result", 2)
         assert "missing value after '--'" in capsys.readouterr().err
+
+
+class TestTesterHoldFixes:
+    """The 2026-07-05 combined-checklist REAL-BUGs, fixed + pinned."""
+
+    def _engine(self, tmp_path):
+        from dazzlecmd_lib.engine import AggregatorEngine
+        from dazzlecmd_lib import prop_commands
+        e = AggregatorEngine(name="t", command="tst",
+                             config_dir=str(tmp_path))
+        prop_commands.register_node_value_alias("tst:.level", "tst.level")
+        prop_commands.register_key_default("tst.level", "tool")
+        return e
+
+    def test_bug1_family_listing_skips_the_value_alias(self, tmp_path, capsys):
+        # `:.level:.` lists the FIBER family under tst:.level -- never
+        # re-routed to the property key by the value alias
+        e = self._engine(tmp_path)
+        e.property_store.set("tst:.level:kit.note", "x")
+        assert e._intercept_path_form([":.level:."]) == ("result", 0)
+        out = capsys.readouterr().out
+        assert "tst:.level:kit.note" in out
+        assert "no properties set" not in out
+
+    def test_bug2_default_read_and_agreement_after_delete(
+            self, tmp_path, capsys):
+        from dazzlecmd_lib import prop_commands
+        e = self._engine(tmp_path)
+        # never set: BOTH spellings answer the default, exit 0
+        assert prop_commands.cmd_get(e, ".level") == 0
+        assert "tool (default)" in capsys.readouterr().out
+        assert e._intercept_path_form([":.level"]) == ("result", 0)
+        assert "tool (default)" in capsys.readouterr().out
+        # set then delete: agreement survives the round-trip
+        e._intercept_path_form([":.level=kit"])
+        capsys.readouterr()
+        assert prop_commands.cmd_delete(e, ":.level") == 0
+        capsys.readouterr()
+        assert prop_commands.cmd_get(e, ":.level") == 0
+        assert "tool (default)" in capsys.readouterr().out
+
+    def test_unset_key_without_default_still_exits_1(self, tmp_path, capsys):
+        from dazzlecmd_lib import prop_commands
+        e = self._engine(tmp_path)
+        assert prop_commands.cmd_get(e, ".nosuch") == 1
+        assert "is not set" in capsys.readouterr().out

@@ -62,18 +62,37 @@ def register_node_value_alias(alias_key: str, target_key: str) -> None:
     NODE_VALUE_ALIASES[alias_key] = target_key
 
 
-def _canonical(engine, path_text: str) -> str:
+# System DEFAULTS for keys whose unset state has a meaning (the layered
+# read's degenerate form -- tester REAL-BUG 2: `dz level` and `dz :.level`
+# must agree AFTER a delete; both now resolve unset -> the registered
+# default, echoed as such). The full derived->system->store layering is
+# the #77 mechanism; this registry is its system-default layer arriving
+# with its first customer.
+KEY_DEFAULTS: Dict[str, Any] = {}
+
+
+def register_key_default(key: str, default: Any) -> None:
+    """Register the system default read when ``key`` is unset."""
+    KEY_DEFAULTS[key] = default
+
+
+def _canonical(engine, path_text: str, *,
+               apply_value_alias: bool = True) -> str:
     """Canonicalize ``path_text`` against the RUNNING aggregator's root
     (SELF-rooted -- ``engine.command``, never a hardcoded ``dz``; R1.2),
     echoing the canonical form once when the spelling was forgiven,
-    then applying the one-node VALUE aliases (exact-key)."""
+    then applying the one-node VALUE aliases (exact-key). LISTING passes
+    ``apply_value_alias=False`` (tester REAL-BUG 1): a family listing is
+    about the NODE's children, not the node's VALUE -- `dz :.level:.`
+    must list the fiber family under `dz:.level`, never `dz.level`."""
     text, forgiven = canonicalize(path_text, implicit_root=engine.command)
     if forgiven:
         print(f"-> {text} (canonical)")
-    target = NODE_VALUE_ALIASES.get(text)
-    if target is not None:
-        print(f"-> {target} (the node's value)")
-        return target
+    if apply_value_alias:
+        target = NODE_VALUE_ALIASES.get(text)
+        if target is not None:
+            print(f"-> {target} (the node's value)")
+            return target
     return text
 
 def _warn_casefold_collision(engine, key: str) -> None:
@@ -128,10 +147,14 @@ def _write(engine, key: str, value: Any) -> Optional[int]:
 
 
 def cmd_get(engine, path_text: str) -> int:
-    """``prop get <path>`` -- print the stored value."""
+    """``prop get <path>`` -- print the stored value (or the registered
+    system default, marked as such)."""
     key = _canonical(engine, path_text)
     value = engine.property_store.get(key)
     if value is None:
+        if key in KEY_DEFAULTS:
+            print(f"{KEY_DEFAULTS[key]} (default)")
+            return 0
         print(f"{key} is not set")
         return 1
     print(value)
@@ -259,7 +282,7 @@ def cmd_list(engine, path_text: Optional[str] = None) -> int:
     if path_text is None:
         key = engine.command
     else:
-        key = _canonical(engine, path_text)
+        key = _canonical(engine, path_text, apply_value_alias=False)
     family = engine.property_store.list_prefix(key)
     if not family:
         print(f"no properties set under {key}")

@@ -298,3 +298,21 @@ class TestNumericAddressingGaps:
         canon, forgiven = canonicalize("tst:.verbosity")
         assert forgiven is True               # ...that today forgives AWAY
         assert canon == "tst.verbosity"
+
+
+class TestKitFiberCompleteness:
+    """The asymmetry find (user, 2026-07-05): EVERY kit-applicable
+    lifecycle axis is kit-class machinery -- derived from applies_at."""
+
+    def test_kit_rung_carries_all_applicable_axes(self, tree):
+        kids = {n.rsplit(":", 1)[-1]
+                for n in tree.successors("tst:.level:kit")}
+        assert {"activation", "visibility", "loading",
+                "membership", "projection"} <= kids
+
+    def test_derived_not_duplicated(self, tree):
+        # activation exists ONCE under kit (the presence space's copy;
+        # the verb-axis skip rule)
+        kids = [n for n in tree.successors("tst:.level:kit")
+                if n.endswith(":activation")]
+        assert len(kids) == 1

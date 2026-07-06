@@ -40,9 +40,9 @@ def _default_mounts():
     """The derived tree's mount table: fiber-plane path -> the REAL
     continuum object that lives there. Extending the tree = adding a
     mount (or, at 2d, synthesizing rung/verb nodes under these)."""
-    from dazzlecmd_lib.verb_axis import VERB_SPACE, LEVEL_CONTINUUM
+    from dazzlecmd_lib.verb_axis import VERB_SPACE, LEVEL_CONTINUUM, VERB_AXES, KIT
     from dazzlecmd_lib.contexts import KIT_PRESENCE_SPACE
-    return {
+    mounts = {
         ":.meta:verb": VERB_SPACE,
         ":.level": LEVEL_CONTINUUM,
         # 2d (the canonical-node decision, 2026-07-04): the kit MACHINERY
@@ -52,6 +52,14 @@ def _default_mounts():
         # resolving; touch-canonicalization re-homes stored keys lazily.
         ":.level:kit": KIT_PRESENCE_SPACE,
     }
+    # 2f (the asymmetry find, 2026-07-05): EVERY kit-applicable lifecycle
+    # axis is kit-class machinery -- DERIVED from the verb registry's
+    # applies_at, never hand-listed. Axis names the presence space
+    # already carries (activation) are skipped (one node per name).
+    for va in VERB_AXES:
+        if KIT in va.applies_at and va.axis not in KIT_PRESENCE_SPACE.axes:
+            mounts[f":.level:kit:{va.axis}"] = va.continuum()
+    return mounts
 
 
 # alias path-prefix -> canonical path-prefix (relative to the root).

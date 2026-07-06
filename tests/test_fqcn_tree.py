@@ -316,3 +316,46 @@ class TestKitFiberCompleteness:
         kids = [n for n in tree.successors("tst:.level:kit")
                 if n.endswith(":activation")]
         assert len(kids) == 1
+
+
+class TestTwoRepresentationConsistency:
+    """The 2026-07-05 meta-find: the user's field catches were ALL
+    disagreements between two representations of one fact -- so test
+    AGREEMENT, not each side alone. These are the mechanized forms of
+    three human finds; extend this class whenever a fact gains a second
+    home."""
+
+    def test_applies_at_agrees_with_the_tree(self, tree):
+        # the kit-card asymmetry, generalized: every verb axis that
+        # declares a level in applies_at is REACHABLE under that rung
+        from dazzlecmd_lib.verb_axis import VERB_AXES
+        for va in VERB_AXES:
+            for level in va.applies_at:
+                rung = f"tst:.level:{level}"
+                assert rung in tree, (va.axis, level)
+                kids = {n.rsplit(":", 1)[-1] for n in tree.successors(rung)}
+                assert va.axis in kids, (
+                    f"{va.axis} declares applies_at={level} but is not "
+                    f"under {rung} -- registry and tree disagree")
+
+    def test_shipped_axes_declare_their_zero(self, tree):
+        # the 0-anchor confusion: an axis whose 0 is occupied must SAY
+        # what is conserved there (invariant nonempty) -- the card can
+        # then justify its own encoding
+        from dazzle_lib.continuum import Continuum
+        from dazzlecmd_lib.verb_axis import VERB_AXES
+        verb_axis_names = {va.axis for va in VERB_AXES}
+        for key in tree.nodes:
+            obj = tree.nodes[key].get("obj")
+            if not isinstance(obj, Continuum):
+                continue
+            if not any(r == 0 for r in obj.ranks.values()):
+                continue
+            if obj.name in verb_axis_names:
+                # warm-at-0 verb axes: the B2 re-encode (symmetric +-1
+                # with meaning-as-invariant) supplies these -- when B2
+                # lands, DELETE this exemption so the invariant tightens
+                continue
+            assert obj.invariant, (
+                f"{key} occupies rank 0 but declares no invariant -- "
+                f"the card cannot justify its own zero")

@@ -43,6 +43,10 @@ MATERIALIZATION_CONTINUUM = Continuum(
     ranks={MATERIALIZED_EMBODIED: 0,
            MATERIALIZED_REFERENCED: -1,
            MATERIALIZED_ABSENT: -2},
+    # declared per the declare-your-zero invariant (2026-07-05): the
+    # conserved quantity at 0 is the thing ITSELF on disk -- colder
+    # rungs are degrees of indirection away from embodiment
+    invariant="embodiment -- the thing itself present, not a reference",
 )
 
 # Provenance poles (binary; warm = tracked at 0).
@@ -52,6 +56,9 @@ UPSTREAM_UNTRACKED = "untracked"  # purely local, no remote
 UPSTREAM_CONTINUUM = Continuum(
     name="upstream",
     ranks={UPSTREAM_TRACKED: 0, UPSTREAM_UNTRACKED: -1},
+    # declare-your-zero: the conserved quantity at 0 is upstream
+    # governance -- a submodule linkage that pull/push flows through
+    invariant="upstream governance -- the submodule linkage",
 )
 
 # A PRODUCT (independent axes, scale-safe): materialization is a presence

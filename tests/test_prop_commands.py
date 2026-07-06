@@ -561,3 +561,15 @@ class TestStructureListing:
         out = capsys.readouterr().out
         assert "structure:" in out and "properties:" in out
         assert "tst:.level:kit.note = 'x'" in out
+
+    def test_listing_marks_current_and_default(self, tmp_path, capsys):
+        # rule-6: the listing agrees with the info card (user find)
+        from dazzlecmd_lib import prop_commands
+        e = self._engine(tmp_path)
+        prop_commands.register_node_value_alias("tst:.level", "tst.level")
+        prop_commands.register_key_default("tst.level", "tool")
+        e.property_store.set("tst.level", "kit")
+        assert prop_commands.cmd_list(e, ":.level") == 0
+        out = capsys.readouterr().out
+        assert "kit           ContinuumSpace (rung) (rank -1)  <- current" in out
+        assert "tool          Unified (rung) (rank -2)  (default)" in out

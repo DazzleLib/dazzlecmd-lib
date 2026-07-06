@@ -293,6 +293,15 @@ def cmd_list(engine, path_text: Optional[str] = None) -> int:
         tree = build_tree(engine.command)
         node_key = resolve_path(tree, key)
         if node_key in tree:
+            # rule-6 consistency: the listing marks current/default
+            # exactly as the info card does (one fact, every surface)
+            current = default_val = None
+            value_key = NODE_VALUE_ALIASES.get(node_key)
+            if value_key is not None:
+                default_val = KEY_DEFAULTS.get(value_key)
+                current = engine.property_store.get(value_key)
+                if current is None:
+                    current = default_val
             kids = sorted(
                 tree.successors(node_key),
                 key=lambda n: (tree.nodes[n].get("rank") is None,
@@ -301,9 +310,14 @@ def cmd_list(engine, path_text: Optional[str] = None) -> int:
                 kn = tree.nodes[child]
                 rank = f" (rank {kn['rank']})" if "rank" in kn else ""
                 role = f" ({kn['role']})" if kn.get("role") else ""
+                seg = child.rsplit(":", 1)[-1]
+                marker = ""
+                if current is not None and seg == current:
+                    marker += "  <- current"
+                if default_val is not None and seg == default_val:
+                    marker += "  (default)"
                 structure.append(
-                    f"    {child.rsplit(':', 1)[-1]:<14}"
-                    f"{kn.get('kind', '')}{role}{rank}")
+                    f"    {seg:<14}{kn.get('kind', '')}{role}{rank}{marker}")
     except Exception:
         pass  # structure display must never break the store listing
     if structure:

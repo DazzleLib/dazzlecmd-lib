@@ -8,6 +8,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 This repository is the standalone home of the library, extracted from the dazzlecmd monorepo at v0.8.55 (2026-06-24). Commit history through 0.8.55 lives in the [dazzlecmd](https://github.com/DazzleTools/dazzlecmd) repository's git log (under `packages/dazzlecmd-lib/`); this CHANGELOG and all subsequent history continue here.
 
+## [0.10.18-alpha] - 2026-07-06
+
+Plane listings show the STRUCTURE: `dz :.level:.` now renders the node's derived children (rank-ordered, with kinds) above any stored properties -- so a real container with nothing set reads `-- structure: ... (no properties set)` while a plain property leaf keeps the old `no properties set under ...` line, making the two states visually distinct (the earlier sweep's confusability finding, closed). Structure display is best-effort and never breaks the store listing.
+
 ## [0.10.17-alpha] - 2026-07-05
 
 The kit rung's fiber is now complete: every kit-applicable lifecycle axis (loading, membership, projection -- alongside the presence space's activation and visibility) mounts under `<root>:.level:kit`, DERIVED from the verb registry's `applies_at` rather than hand-listed -- so `dz info kit`'s "contains" matches the machinery `dz kit -h` documents, and a future kit-applicable axis joins the card automatically.

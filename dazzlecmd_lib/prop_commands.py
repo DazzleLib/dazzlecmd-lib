@@ -283,10 +283,41 @@ def cmd_list(engine, path_text: Optional[str] = None) -> int:
         key = engine.command
     else:
         key = _canonical(engine, path_text, apply_value_alias=False)
+    # 2f: a listing shows the DERIVED STRUCTURE alongside stored keys --
+    # a real-but-empty container is no longer textually identical to a
+    # non-container (the sweep's Finding-1 residue). Tree-needing path;
+    # networkx loads lazily here only.
+    structure = []
+    try:
+        from dazzlecmd_lib.fqcn_tree import build_tree, resolve_path
+        tree = build_tree(engine.command)
+        node_key = resolve_path(tree, key)
+        if node_key in tree:
+            kids = sorted(
+                tree.successors(node_key),
+                key=lambda n: (tree.nodes[n].get("rank") is None,
+                               tree.nodes[n].get("rank", 0), n))
+            for child in kids:
+                kn = tree.nodes[child]
+                rank = f" (rank {kn['rank']})" if "rank" in kn else ""
+                structure.append(
+                    f"    {child.rsplit(':', 1)[-1]:<14}"
+                    f"{kn.get('kind', '')}{rank}")
+    except Exception:
+        pass  # structure display must never break the store listing
+    if structure:
+        print(f"{key} -- structure:")
+        for line in structure:
+            print(line)
     family = engine.property_store.list_prefix(key)
     if not family:
-        print(f"no properties set under {key}")
+        if structure:
+            print("(no properties set)")
+        else:
+            print(f"no properties set under {key}")
         return 0
+    if structure:
+        print("properties:")
     for k in sorted(family):
         print(f"{k} = {family[k]!r}")
     return 0

@@ -523,3 +523,41 @@ class TestTesterHoldFixes:
         e = self._engine(tmp_path)
         assert prop_commands.cmd_get(e, ".nosuch") == 1
         assert "is not set" in capsys.readouterr().out
+
+
+class TestStructureListing:
+    """2f: `:.`-listings show DERIVED STRUCTURE alongside stored keys --
+    a real-but-empty container is distinguishable from a non-container
+    (the sweep's Finding-1 residue, closed)."""
+
+    def _engine(self, tmp_path):
+        from dazzlecmd_lib.engine import AggregatorEngine
+        return AggregatorEngine(name="t", command="tst",
+                                config_dir=str(tmp_path))
+
+    def test_container_shows_structure_even_empty(self, tmp_path, capsys):
+        from dazzlecmd_lib import prop_commands
+        e = self._engine(tmp_path)
+        assert prop_commands.cmd_list(e, ":.level") == 0
+        out = capsys.readouterr().out
+        assert "structure:" in out and "kit" in out
+        assert "(no properties set)" in out
+        # rank-ordered, not alphabetical:
+        assert out.index("fiber") < out.index("aggregator")
+
+    def test_property_leaf_shows_no_structure(self, tmp_path, capsys):
+        from dazzlecmd_lib import prop_commands
+        e = self._engine(tmp_path)
+        assert prop_commands.cmd_list(e, ".brandnew") == 0
+        out = capsys.readouterr().out
+        assert "structure:" not in out
+        assert "no properties set under tst.brandnew" in out
+
+    def test_structure_plus_stored_keys(self, tmp_path, capsys):
+        from dazzlecmd_lib import prop_commands
+        e = self._engine(tmp_path)
+        e.property_store.set("tst:.level:kit.note", "x")
+        assert prop_commands.cmd_list(e, ":.level:kit") == 0
+        out = capsys.readouterr().out
+        assert "structure:" in out and "properties:" in out
+        assert "tst:.level:kit.note = 'x'" in out

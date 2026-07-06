@@ -758,6 +758,10 @@ class AggregatorEngine:
         # applied by fqcn_tree.build_engine_tree -- ONE tree, every
         # surface (the matrix sweep's Row-1 fix)
         self.tree_extensions = []
+        # B-5 (fiber-work) / #77 P2's degenerate form: DERIVED property
+        # reads -- hooks(engine, key) -> value|None. A claimed key is
+        # READ-ONLY (derived beats the store; the authority model).
+        self.derived_reads = []
 
         # The app's hook for pre-path global flags on the sugar intercept
         # (`dz -v .note` -- the intercept bypasses argparse, so the app

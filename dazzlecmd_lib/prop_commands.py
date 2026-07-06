@@ -123,6 +123,12 @@ def _warn_casefold_collision(engine, key: str) -> None:
 
 def _write(engine, key: str, value: Any) -> Optional[int]:
     """Shared validated write. Returns an exit code on rejection."""
+    for hook in getattr(engine, "derived_reads", []):
+        if hook(engine, key) is not None:
+            print(f"Error: {key} is READ-ONLY (a derived property -- "
+                  f"its value comes from the item's own data).",
+                  file=sys.stderr)
+            return 2
     validator = VALIDATED_KEYS.get(key)
     if validator is not None:
         try:
@@ -150,6 +156,11 @@ def cmd_get(engine, path_text: str) -> int:
     """``prop get <path>`` -- print the stored value (or the registered
     system default, marked as such)."""
     key = _canonical(engine, path_text)
+    for hook in getattr(engine, "derived_reads", []):
+        derived = hook(engine, key)
+        if derived is not None:
+            print(f"{derived} (derived)")
+            return 0
     value = engine.property_store.get(key)
     if value is None:
         if key in KEY_DEFAULTS:

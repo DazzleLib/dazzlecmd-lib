@@ -573,3 +573,33 @@ class TestStructureListing:
         out = capsys.readouterr().out
         assert "kit           ContinuumSpace (rung) (rank -1)  <- current" in out
         assert "tool          Unified (rung) (rank -2)  (default)" in out
+
+
+class TestDerivedReads:
+    """B-5 (fiber-work) / #77 P2 degenerate: derived reads beat the
+    store; claimed keys are read-only (the authority model)."""
+
+    def _engine(self, tmp_path):
+        from dazzlecmd_lib.engine import AggregatorEngine
+        e = AggregatorEngine(name="t", command="tst",
+                             config_dir=str(tmp_path))
+        e.derived_reads.append(
+            lambda eng, key: "1.2.3" if key == "tst:x.version" else None)
+        return e
+
+    def test_derived_read_wins(self, tmp_path, capsys):
+        from dazzlecmd_lib import prop_commands
+        e = self._engine(tmp_path)
+        assert prop_commands.cmd_get(e, ":x.version") == 0
+        assert "1.2.3 (derived)" in capsys.readouterr().out
+
+    def test_claimed_key_is_read_only(self, tmp_path, capsys):
+        e = self._engine(tmp_path)
+        assert e._intercept_path_form([":x.version=9"]) == ("result", 2)
+        assert "READ-ONLY" in capsys.readouterr().err
+        assert e.property_store.get("tst:x.version") is None
+
+    def test_unclaimed_keys_unaffected(self, tmp_path, capsys):
+        e = self._engine(tmp_path)
+        assert e._intercept_path_form([":x.note=hi"]) == ("result", 0)
+        assert e.property_store.get("tst:x.note") == "hi"

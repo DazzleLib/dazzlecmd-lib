@@ -8,6 +8,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 This repository is the standalone home of the library, extracted from the dazzlecmd monorepo at v0.8.55 (2026-06-24). Commit history through 0.8.55 lives in the [dazzlecmd](https://github.com/DazzleTools/dazzlecmd) repository's git log (under `packages/dazzlecmd-lib/`); this CHANGELOG and all subsequent history continue here.
 
+## [0.10.21-alpha] - 2026-07-06
+
+The surface-matrix sweep's cross-surface fixes: `build_engine_tree` applies engine-registered tree extensions so EVERY surface (info card and plane listings alike) sees the same tree -- app verbs now appear in `dz :.meta:verb:.` listings, not just cards; structure columns pad dynamically (a >=14-char name like `materialization` no longer fuses into its kind).
+
 ## [0.10.20-alpha] - 2026-07-06
 
 Plane listings mark the current and default rungs exactly as the info card does (`kit ... <- current`, `tool ... (default)`) -- one fact, rendered consistently on every surface.

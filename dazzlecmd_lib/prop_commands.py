@@ -289,8 +289,8 @@ def cmd_list(engine, path_text: Optional[str] = None) -> int:
     # networkx loads lazily here only.
     structure = []
     try:
-        from dazzlecmd_lib.fqcn_tree import build_tree, resolve_path
-        tree = build_tree(engine.command)
+        from dazzlecmd_lib.fqcn_tree import build_engine_tree, resolve_path
+        tree = build_engine_tree(engine)
         node_key = resolve_path(tree, key)
         if node_key in tree:
             # rule-6 consistency: the listing marks current/default
@@ -306,6 +306,8 @@ def cmd_list(engine, path_text: Optional[str] = None) -> int:
                 tree.successors(node_key),
                 key=lambda n: (tree.nodes[n].get("rank") is None,
                                tree.nodes[n].get("rank", 0), n))
+            width = max([14] + [len(c.rsplit(":", 1)[-1]) + 2
+                                for c in kids])
             for child in kids:
                 kn = tree.nodes[child]
                 rank = f" (rank {kn['rank']})" if "rank" in kn else ""
@@ -317,7 +319,7 @@ def cmd_list(engine, path_text: Optional[str] = None) -> int:
                 if default_val is not None and seg == default_val:
                     marker += "  (default)"
                 structure.append(
-                    f"    {seg:<14}{kn.get('kind', '')}{role}{rank}{marker}")
+                    f"    {seg:<{width}}{kn.get('kind', '')}{role}{rank}{marker}")
     except Exception:
         pass  # structure display must never break the store listing
     if structure:

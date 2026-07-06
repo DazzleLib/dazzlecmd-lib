@@ -193,6 +193,19 @@ def touch_canonicalize(tree, store, path: str):
     return canonical, value
 
 
+def build_engine_tree(engine):
+    """The ONE tree every surface shares: build + apply the engine's
+    registered extensions (app verb grafts etc.). Row-1 of the surface
+    matrix: card and listing must see the SAME tree."""
+    tree = build_tree(engine.command)
+    for ext in getattr(engine, "tree_extensions", []):
+        try:
+            ext(engine, tree)
+        except Exception:
+            pass  # an extension must never break the surface
+    return tree
+
+
 def derive_channels(tree) -> Dict[str, ChannelInfo]:
     """Every node's channel, BY EXISTING -- the derived replacement for a
     hand-maintained channel list. Keys are the node bang-paths; the

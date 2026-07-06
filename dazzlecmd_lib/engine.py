@@ -754,6 +754,10 @@ class AggregatorEngine:
         # caches over one file; a write through one leaves the other
         # stale within a process). v2 contract R1.8.
         self._property_store = None
+        # tree extensions: app-registered graft callables (engine, tree)
+        # applied by fqcn_tree.build_engine_tree -- ONE tree, every
+        # surface (the matrix sweep's Row-1 fix)
+        self.tree_extensions = []
 
         # The app's hook for pre-path global flags on the sugar intercept
         # (`dz -v .note` -- the intercept bypasses argparse, so the app

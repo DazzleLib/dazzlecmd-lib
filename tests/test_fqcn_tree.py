@@ -150,15 +150,15 @@ class TestRungSynthesis:
                      "aggregator", "supra"):
             key = f"tst:.level:{rung}"
             assert key in tree, key
-            # rung-ness = the axis/rank attrs. `kind` stays "rung" for a
-            # plain rung but becomes the OBJECT's type when machinery
-            # grafts onto it (kit hosts KIT_PRESENCE_SPACE -- the
-            # one-node doctrine: rung node == machinery host).
+            # rung-ness = the ROLE (2026-07-06: kind is the LADDER TYPE;
+            # a plain rung is a degenerate Unified; machinery grafting
+            # onto a rung upgrades the TYPE, never the role).
             assert tree.nodes[key]["axis"] == "tst:.level"
+            assert tree.nodes[key]["role"] == "rung"
             if rung == "kit":
                 assert tree.nodes[key]["kind"] == "ContinuumSpace"
             else:
-                assert tree.nodes[key]["kind"] == "rung"
+                assert tree.nodes[key]["kind"] == "Unified"
 
     def test_verb_poles_are_rung_nodes(self, tree):
         # the verb-addressing scheme's verb nodes, derived not listed
@@ -359,3 +359,20 @@ class TestTwoRepresentationConsistency:
             assert obj.invariant, (
                 f"{key} occupies rank 0 but declares no invariant -- "
                 f"the card cannot justify its own zero")
+
+
+class TestOntologyRule:
+    """User find 2026-07-06: 'namespace' is not a kind in our system --
+    every node carries a LADDER TYPE; role is a separate facet. An
+    undeclared node is a Unified in degenerate form."""
+
+    def test_no_node_without_a_ladder_type(self, tree):
+        LADDER = {"Unified", "Groupable", "Continuum", "ContinuumSpace"}
+        for key in tree.nodes:
+            assert tree.nodes[key].get("kind") in LADDER, (
+                key, tree.nodes[key].get("kind"))
+
+    def test_meta_is_a_unified_with_namespace_role(self, tree):
+        n = tree.nodes["tst:.meta"]
+        assert n["kind"] == "Unified" and n["role"] == "namespace"
+        assert n["obj"].label == "meta"

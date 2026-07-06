@@ -300,9 +300,10 @@ def cmd_list(engine, path_text: Optional[str] = None) -> int:
             for child in kids:
                 kn = tree.nodes[child]
                 rank = f" (rank {kn['rank']})" if "rank" in kn else ""
+                role = f" ({kn['role']})" if kn.get("role") else ""
                 structure.append(
                     f"    {child.rsplit(':', 1)[-1]:<14}"
-                    f"{kn.get('kind', '')}{rank}")
+                    f"{kn.get('kind', '')}{role}{rank}")
     except Exception:
         pass  # structure display must never break the store listing
     if structure:

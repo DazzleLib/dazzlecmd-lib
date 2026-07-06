@@ -8,6 +8,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 This repository is the standalone home of the library, extracted from the dazzlecmd monorepo at v0.8.55 (2026-06-24). Commit history through 0.8.55 lives in the [dazzlecmd](https://github.com/DazzleTools/dazzlecmd) repository's git log (under `packages/dazzlecmd-lib/`); this CHANGELOG and all subsequent history continue here.
 
+## [0.10.19-alpha] - 2026-07-06
+
+"namespace" is retired as a kind -- it was never one of our kinds. Every tree node now carries a LADDER TYPE (`Unified` | `Groupable` | `Continuum` | `ContinuumSpace`) with role (`namespace`, `rung`, `verb`, ...) as a separate facet: an undeclared mount node is a degenerate `Unified` (the kind ladder's floor), rung nodes are `Unified (rung)`, and a mount that receives a graft sheds the namespace role (it IS the object now) while structural roles like `rung` survive grafting. Listings and cards render `Type (role)`. A pinned invariant enforces the rule: no node without a ladder type.
+
 ## [0.10.18-alpha] - 2026-07-06
 
 Plane listings show the STRUCTURE: `dz :.level:.` now renders the node's derived children (rank-ordered, with kinds) above any stored properties -- so a real container with nothing set reads `-- structure: ... (no properties set)` while a plain property leaf keeps the old `no properties set under ...` line, making the two states visually distinct (the earlier sweep's confusability finding, closed). Structure display is best-effort and never breaks the store listing.

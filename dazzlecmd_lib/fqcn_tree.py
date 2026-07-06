@@ -25,7 +25,9 @@ intrinsic pair is `<root>:.level` (the containment axis) and
 
 from __future__ import annotations
 
-from typing import Any, Dict, NamedTuple, Optional
+from typing import Any, Dict, NamedTuple, Optional, Tuple
+
+from dazzle_lib.groupable import Unified
 
 
 class ChannelInfo(NamedTuple):
@@ -84,17 +86,24 @@ def build_tree(root: str, mounts: Optional[Dict[str, Any]] = None,
     from dazzle_lib.continuum import children
 
     g = nx.DiGraph()
-    g.add_node(root, obj=None, kind="aggregator-root")
+    # ONTOLOGY RULE (user find 2026-07-06): every node carries a ladder
+    # TYPE (kind: Unified|Groupable|Continuum|ContinuumSpace) and, where
+    # meaningful, a ROLE (namespace, rung, verb, ...). "namespace" was
+    # never a kind in our system -- an undeclared node is a UNIFIED in
+    # degenerate form (the kind ladder's floor).
+    g.add_node(root, obj=Unified(label=root), kind="Unified",
+               role="aggregator-root")
     seen = set()
 
     def mount(base: str, obj: Any) -> None:
-        # ensure intermediate namespace nodes exist (e.g. ':.meta')
+        # ensure intermediate mount nodes exist (e.g. ':.meta')
         parts = base.split(":")
         prefix = root
         for part in parts[1:]:  # parts[0] == '' before the first ':'
             child = f"{prefix}:{part}"
             if child not in g:
-                g.add_node(child, obj=None, kind="namespace")
+                g.add_node(child, obj=Unified(label=part.lstrip(".")),
+                           kind="Unified", role="namespace")
                 g.add_edge(prefix, child)
             prefix = child
         _graft(prefix, obj)
@@ -105,6 +114,10 @@ def build_tree(root: str, mounts: Optional[Dict[str, Any]] = None,
         seen.add(id(obj))
         g.nodes[at]["obj"] = obj
         g.nodes[at]["kind"] = type(obj).__name__
+        if g.nodes[at].get("role") == "namespace":
+            # a grafted mount is the OBJECT now, not a mere namespace
+            # (structural roles like "rung" DO survive grafting -- kit)
+            del g.nodes[at]["role"]
         for name, child_obj in children(obj).items():
             child = f"{at}:{name}"
             if child not in g:
@@ -140,7 +153,8 @@ def _synthesize_rungs(g) -> None:
             for rung in obj.levels():
                 child = f"{key}:{rung}"
                 if child not in g:
-                    g.add_node(child, obj=None, kind="rung",
+                    g.add_node(child, obj=Unified(label=rung),
+                               kind="Unified", role="rung",
                                axis=key, rank=obj.rank(rung))
                     g.add_edge(key, child)
 

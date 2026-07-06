@@ -247,7 +247,15 @@ LEVEL_CONTINUUM = Continuum(
         "kit": -1,
         "aggregator": 0,
         "supra": 1,           # the containing world (envs, shells; ':+')
-    })
+    },
+    # The 0-anchor is IDENTITY, not preference: 0 = SELF, the speaking
+    # aggregator (every address roots here; X:0 == X). The DEFAULT
+    # operating level (tool) is a PROPERTY/chart center, deliberately
+    # distinct (bedrock DWP Rev 1.2/1.7). fiber and supra are OPEN
+    # BOUNDARIES, not ordinary rungs -- placeholders for future levels
+    # (environment/shell above; deeper structure classes below), to be
+    # opened with shift_from/densify when they concretize.
+    invariant="self -- the speaking aggregator")
 
 # Mode is meaningful wherever an entity can be embodied/tracked -- tool, kit, AND
 # aggregator (the de-vendoring precedent extends it down the inward fiber too). The

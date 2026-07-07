@@ -24,7 +24,7 @@ def main():
     return engine.run()
 ```
 
-That gives you `mt list`, `mt info <tool>`, `mt kit`, `mt version`, `mt tree`, and `mt setup` for free. Customize via the meta-command registry:
+That gives you `mt list`, `mt info <tool>`, `mt kit`, `mt version`, `mt tree`, `mt setup` — plus the whole FQCN surface: a property store (`mt .note=hi`, `mt prop list`), bang-path addressing (`mt :.meta`, `mt :core:tool.version`), and a derived tree where every axis, verb, and rung is inspectable (`mt info <anything>`) — for free. Customize via the meta-command registry:
 
 ```python
 engine.meta_registry.register("mycmd", parser_factory, handler)
@@ -42,6 +42,11 @@ engine.meta_registry.unregister("tree")
 - **`ConfigManager`** — per-aggregator config reading/writing.
 - The **mode subsystem** — embedded / submodule / symlink tool-source detection and the dev↔publish toggle.
 - The **`DazzleEntity`** object model and the kit/continuum machinery (built on the `dazzle-lib` bedrock).
+- **`fqcn_grammar`** — the bang-path address grammar: `:` selects a child, `.` reads a property, `:.` steps into a fiber (hidden machinery), `:+` steps to the parent. Forgiving canonicalization with visible rewrites (`-> dz.note (canonical)`), never silent.
+- **`property_store` / `prop_commands`** — the property surface (`mt .note=hi`, `mt prop get/set/add/delete/list`) over a discoverable `properties.json`: validated keys, registered defaults (`tool (default)`), one-node value aliases, and **derived read-only properties** (`engine.derived_reads` — values answered from an item's own data, shadow-proof).
+- **`fqcn_tree`** — the **derived tree**: every axis, rung, verb pole, and (via engine extensions) instance becomes an addressable node, derived from the live structures rather than hand-listed. Channels-by-existing, the verbosity **cascade** (one write on an outer node quiets its subtree), prefix-aware aliases with lazy key migration, and the seams an aggregator customizes: `engine.tree_extensions`, `engine.tree_mounts`, `engine.tree_aliases`.
+- **`verb_axis`** — verbs as poles on signed-rank axes (`enable↔disable`, `attach↔detach`, …) with universal `on`/`off` synonyms, the containment ladder (`fiber < lib < internaltool < tool < kit < aggregator < supra`), and the composed verb×level space that routes `mt <verb> <target>` with zero per-verb branches.
+- **`interrogation`** — the identity/state card machinery behind `mt info` at every level.
 
 ## The DazzleLib stack
 

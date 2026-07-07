@@ -166,6 +166,15 @@ def cmd_get(engine, path_text: str) -> int:
         if key in KEY_DEFAULTS:
             print(f"{KEY_DEFAULTS[key]} (default)")
             return 0
+        for hook in getattr(engine, "fallthrough_reads", []):
+            # the COUNTERPART tier (R-1: the echo names the true source):
+            # an address whose ring-counterpart holds the value answers
+            # with it rather than "is not set"
+            res = hook(engine, key)
+            if res is not None:
+                value, source_key = res
+                print(f"{value}   (from {source_key})")
+                return 0
         for hook in getattr(engine, "node_hints", []):
             hint = hook(engine, key)
             if hint:

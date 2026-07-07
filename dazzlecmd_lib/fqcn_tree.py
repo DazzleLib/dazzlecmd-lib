@@ -197,7 +197,11 @@ def build_engine_tree(engine):
     """The ONE tree every surface shares: build + apply the engine's
     registered extensions (app verb grafts etc.). Row-1 of the surface
     matrix: card and listing must see the SAME tree."""
-    tree = build_tree(engine.command)
+    tree = build_tree(
+        engine.command,
+        mounts=getattr(engine, "tree_mounts", None),
+        aliases=getattr(engine, "tree_aliases", None),
+    )
     for ext in getattr(engine, "tree_extensions", []):
         try:
             ext(engine, tree)

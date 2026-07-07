@@ -166,6 +166,12 @@ def cmd_get(engine, path_text: str) -> int:
         if key in KEY_DEFAULTS:
             print(f"{KEY_DEFAULTS[key]} (default)")
             return 0
+        for hook in getattr(engine, "node_hints", []):
+            hint = hook(engine, key)
+            if hint:
+                # a REAL node with no value: identity, not an error
+                print(f"{key} has no value set -- {hint}")
+                return 0
         print(f"{key} is not set")
         return 1
     print(value)

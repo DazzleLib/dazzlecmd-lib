@@ -121,8 +121,29 @@ def _warn_casefold_collision(engine, key: str) -> None:
             )
 
 
+# STRUCTURALLY read-only key FAMILIES (certification 2026-07-07: the
+# derived-read heuristic only rejected keys whose read returned non-None
+# -- absent-from-file keys and colon-spelled keys slipped through and
+# wrote phantom values over file-truth, Law-6/ODR violation with a live
+# incident). A registered family rejects EVERY write under it, both
+# separators, present-or-absent (key_in_family is boundary-aware).
+READONLY_FAMILIES: set = set()
+
+
+def register_readonly_family(prefix: str) -> None:
+    """Register a key-family prefix whose entire subtree refuses writes."""
+    READONLY_FAMILIES.add(prefix)
+
+
 def _write(engine, key: str, value: Any) -> Optional[int]:
     """Shared validated write. Returns an exit code on rejection."""
+    from dazzlecmd_lib.property_store import key_in_family
+    for fam in READONLY_FAMILIES:
+        if key_in_family(key, fam):
+            print(f"Error: {key} is READ-ONLY ({fam} is file-truth -- "
+                  f"writes go through the file, never the store).",
+                  file=sys.stderr)
+            return 2
     for hook in getattr(engine, "derived_reads", []):
         if hook(engine, key) is not None:
             print(f"Error: {key} is READ-ONLY (a derived property -- "

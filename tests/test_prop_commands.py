@@ -603,3 +603,36 @@ class TestDerivedReads:
         e = self._engine(tmp_path)
         assert e._intercept_path_form([":x.note=hi"]) == ("result", 0)
         assert e.property_store.get("tst:x.note") == "hi"
+
+
+class TestReadonlyFamilies:
+    """Certification 2026-07-07: the config ring's write refusal must be
+    STRUCTURAL (the derived-read heuristic let absent keys and
+    colon-spelled keys write phantom values -- Law 6 violation with a
+    live ~/.dz incident)."""
+
+    def _engine(self, tmp_path):
+        from dazzlecmd_lib.engine import AggregatorEngine
+        from dazzlecmd_lib import prop_commands
+        e = AggregatorEngine(name="t", command="tst",
+                             config_dir=str(tmp_path))
+        prop_commands.register_readonly_family("tst:.meta:config")
+        return e
+
+    def test_absent_key_dot_form_rejected(self, tmp_path, capsys):
+        e = self._engine(tmp_path)
+        assert e._intercept_path_form([":.meta:config.active_kits=x"]) == \
+            ("result", 2)
+        assert e.property_store.get("tst:.meta:config.active_kits") is None
+
+    def test_colon_form_rejected(self, tmp_path, capsys):
+        from dazzlecmd_lib import prop_commands
+        e = self._engine(tmp_path)
+        assert prop_commands.cmd_add(
+            e, ":.meta:config:active_kits", "x") == 2
+        assert e.property_store.get("tst:.meta:config:active_kits") is None
+
+    def test_family_boundary_respected(self, tmp_path, capsys):
+        # "configuration" is NOT in the ":.meta:config" family
+        e = self._engine(tmp_path)
+        assert e._intercept_path_form([":.meta:configx=ok"]) == ("result", 0)

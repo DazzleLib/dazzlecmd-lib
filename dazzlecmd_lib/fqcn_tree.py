@@ -178,14 +178,20 @@ def resolve_path(tree, path: str) -> str:
 
 
 def _rank_zero_target(tree, key):
-    """THE ZERO LAW (C2 DWP 2026-07-08, Z-B -- pending ratification):
-    ``X:0`` selects X's NUCLEUS -- the materialized invariant seat when
-    one exists (the child at rank 0), else X itself (the degenerate
-    nucleus IS the thing). RS-4's ``X:0 == X`` is the degenerate case."""
+    """THE ZERO LAW, RATIFIED Z-D (user, 2026-07-08): the OPERATOR is
+    the disambiguator -- this function answers only the FIBER spelling
+    (``X:.0`` = enter the ring, select the rank-0 seat; else self).
+    The PLAIN spelling ``X:0`` never reaches here: it is SELF (RS-4,
+    literal). A christened seat (named) frees plain 0 to mean self; an
+    anonymous seat (self-named "0") still answers ``X:0`` by literal
+    name-match before rank logic runs."""
     for child in tree.successors(key):
         if tree.nodes[child].get("rank") == 0:
             return child
     return key
+
+
+_RANK_SEG_RE = __import__("re").compile(r"-?\d+(?:/\d+)?")
 
 
 def _resolve_ranks(tree, path: str) -> str:
@@ -200,16 +206,39 @@ def _resolve_ranks(tree, path: str) -> str:
         return path
     key = segs[0]
     for seg in segs[1:]:
+        if seg and set(seg[:1]) == {"+"}:
+            # SUPRA: deterministic ascent -- one parent per '+', then
+            # an optional rank key selects among the landing node's
+            # children (RS-4's co-level move: remove:+1 -> add)
+            ups = 1 + len(seg[1:]) - len(seg[1:].lstrip("+"))
+            rest = seg.lstrip("+")
+            for _ in range(ups):
+                parents = list(tree.predecessors(key))
+                if len(parents) != 1:
+                    return path
+                key = parents[0]
+            if rest:
+                seg = rest  # fall through to keyed selection below
+            else:
+                continue
         lit = f"{key}:{seg}"
         if lit in tree:
             key = lit
             continue
+        # a leading '.' is the FIBER MARKER (O-A: ":.1" = fiber descent
+        # + rank), never a decimal point -- ranks are ints/fractions
+        # ONLY ("one number, one meaning"; ".5" means rank 5, not 1/2)
+        rank_text = seg[1:] if seg.startswith(".") else seg
+        if not _RANK_SEG_RE.fullmatch(rank_text or ""):
+            return path
         try:
-            rank = Fraction(seg)
+            rank = Fraction(rank_text)
         except (ValueError, ZeroDivisionError):
             return path
         if rank == 0:
-            key = _rank_zero_target(tree, key)
+            if seg.startswith("."):
+                key = _rank_zero_target(tree, key)  # fiber: the seat
+            # plain :0 = SELF (RS-4) -- key unchanged
             continue
         hits = [c for c in tree.successors(key)
                 if tree.nodes[c].get("rank") == rank]

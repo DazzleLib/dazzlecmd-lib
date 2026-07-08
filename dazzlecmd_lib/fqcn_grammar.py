@@ -128,6 +128,27 @@ def parse(path: str, implicit_root: Optional[str] = None) -> ParsedPath:
                 f"{path!r}"
             )
         pos += len(op)
+        if op == OP_SUPRA:
+            # ascent is DETERMINISTIC (one canonical parent), so bare
+            # :+ / :++ / :+++ need no key; an optional RANK key may
+            # follow (:+1 = parent, then the child at rank 1 -- RS-4's
+            # co-level move). Extra '+' runs fold into the segment.
+            ups = 1
+            while pos < len(path) and path[pos] == "+":
+                ups += 1
+                pos += 1
+            rm = _RANK_RE.match(path, pos)
+            key = ""
+            if rm and (rm.end() == len(path) or path[rm.end()] in ":.="):
+                key = rm.group(0)
+                pos = rm.end()
+            else:
+                nm = _NAME_RE.match(path, pos)
+                if nm is not None and nm.start() == pos:
+                    key = nm.group(0)
+                    pos = nm.end()
+            segments.append(Segment(op, ("+" * (ups - 1)) + key))
+            continue
         name_re = _SUBKEY_RE if (in_property and op == OP_PATH) else _NAME_RE
         nm = None
         if not in_property:

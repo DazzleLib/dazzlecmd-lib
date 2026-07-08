@@ -92,7 +92,6 @@ MALFORMED = [
     "dz::kit",          # double colon
     "dz:.KIT",          # uppercase name (names are lowercase)
     "dz..x",            # double property operator
-    "dz:+",             # trailing supra
     "dz:grep..note",    # double dot mid-path
     "dz:-bad",          # name can't start with '-'
 ]
@@ -218,7 +217,7 @@ class TestParseCli:
             parse_cli("dz:.:.")
 
     def test_reserved_trailing_ops_error(self):
-        for text in ("dz.note.", "dz:kit:", "dz:+", "."):
+        for text in ("dz.note.", "dz:kit:", "."):
             with pytest.raises(FQCNParseError):
                 parse_cli(text, implicit_root="dz")
 
@@ -248,3 +247,12 @@ class TestOperatorLedAndPlanes:
     def test_segment_planes_fiber_supra(self):
         parsed = parse("dz:+kit:.verb")
         assert segment_planes(parsed) == (PLANE_SUPRA, PLANE_FIBER)
+
+
+def test_bare_supra_is_now_legal():
+    # CONTRACT CHANGE (C2+, 2026-07-08): bare :+ / :++ = parent /
+    # grandparent -- ascent is deterministic so no key is required
+    # (RS-4). Previously rejected as malformed.
+    from dazzlecmd_lib.fqcn_grammar import canonicalize
+    assert canonicalize("dz:+")[0] == "dz:+"
+    assert canonicalize("dz:kit:++")[0] == "dz:kit:++"

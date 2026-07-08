@@ -278,16 +278,18 @@ class TestNumericAddressingGaps:
         assert resolve_path(g, "tst:.kit:2") == "tst:.kit:config"
         assert resolve_path(g, "tst:.kit:3") == "tst:.kit:debug"
 
-    def test_zero_law_selects_nucleus_else_self(self):
-        # THE ZERO LAW (C2 DWP, Z-B): X:0 -> the materialized rank-0
-        # seat when one exists, else X itself (degenerate nucleus).
+    def test_zero_law_z_d_operator_splits_the_meaning(self):
+        # THE ZERO LAW, RATIFIED Z-D (user 2026-07-08): plain :0 = SELF
+        # (RS-4 literal); fiber :.0 = the ring's rank-0 seat. The
+        # OPERATOR disambiguates -- that is what :. is FOR.
         from dazzle_lib.continuum import Continuum
         v = Continuum("kit", ranks={"off": -1, "seat": 0, "on": 1})
         g = build_tree("tst", mounts={":.kit": v})
-        assert resolve_path(g, "tst:.kit:0") == "tst:.kit:seat"
+        assert resolve_path(g, "tst:.kit:0") == "tst:.kit"        # SELF
+        assert resolve_path(g, "tst:.kit:.0") == "tst:.kit:seat"  # the seat
         v2 = Continuum("k2", ranks={"config": 2, "debug": 3})
         g2 = build_tree("tst", mounts={":.k2": v2})
-        assert resolve_path(g2, "tst:.k2:0") == "tst:.k2"  # degenerate
+        assert resolve_path(g2, "tst:.k2:.0") == "tst:.k2"  # no seat: self
 
     def test_integer_anon_rung_parses_under_vocabulary_mounts(self):
         # integers are legal names -- an int-anon rung under an
@@ -392,3 +394,39 @@ class TestOntologyRule:
         n = tree.nodes["tst:.meta"]
         assert n["kind"] == "Unified" and n["role"] == "namespace"
         assert n["obj"].label == "meta"
+
+
+class TestSupraComposition:
+    """Deref-then-walk-up (user probe 2026-07-08): keyed descent
+    composes with deterministic ascent -- X:0:+ lands back on X's
+    axis; :+N does the RS-4 co-level move; decimals are NOT ranks."""
+
+    def _tree(self):
+        from dazzle_lib.continuum import Continuum
+        v = Continuum("kit", ranks={"off": -1, "seat": 0, "on": 1})
+        return build_tree("tst", mounts={":.kit": v})
+
+    def test_deref_then_up(self):
+        g = self._tree()
+        # fiber-0 lands on the SEAT; :+ walks back up to the axis
+        assert resolve_path(g, "tst:.kit:.0:+") == "tst:.kit"
+        # named-rung deref then up
+        assert resolve_path(g, "tst:.kit:1:+") == "tst:.kit"
+
+    def test_supra_with_rank_key_is_the_co_level_move(self):
+        g = self._tree()
+        assert resolve_path(g, "tst:.kit:off:+1") == "tst:.kit:on"
+
+    def test_double_up(self):
+        g = self._tree()
+        assert resolve_path(g, "tst:.kit:on:++") == "tst"
+
+    def test_decimals_are_not_ranks(self):
+        g = self._tree()
+        # ".5" = fiber marker + rank 5 (vacant) -- NEVER rank 1/2
+        assert resolve_path(g, "tst:.kit:.5") == "tst:.kit:.5"  # unresolved
+
+    def test_grammar_admits_bare_supra(self):
+        from dazzlecmd_lib.fqcn_grammar import canonicalize
+        assert canonicalize("tst:.kit:0:+")[0] == "tst:.kit:0:+"
+        assert canonicalize("tst:.kit:on:++")[0] == "tst:.kit:on:++"

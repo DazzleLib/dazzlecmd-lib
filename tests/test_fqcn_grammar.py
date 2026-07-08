@@ -256,3 +256,32 @@ def test_bare_supra_is_now_legal():
     from dazzlecmd_lib.fqcn_grammar import canonicalize
     assert canonicalize("dz:+")[0] == "dz:+"
     assert canonicalize("dz:kit:++")[0] == "dz:kit:++"
+
+
+class TestOperatorNotNameDot:
+    """THE ONE-MEANING PIN (user consistency probe 2026-07-08): `:.` is
+    the RING/FIBER OPERATOR; parsed names are BARE (the dot is never
+    part of a name -- it only appears in serialized key strings). The
+    hidden-name reading (B-10) is an address-algebra equivalence, not a
+    second mechanism -- and these vectors keep the two readings from
+    ever diverging."""
+
+    def test_parsed_model_is_operator_plus_bare_name(self):
+        from dazzlecmd_lib.fqcn_grammar import parse
+        p = parse("dz:.meta:verb")
+        assert [(s.op, s.name) for s in p.segments] == [
+            (":.", "meta"), (":", "verb")]  # BARE 'meta', never '.meta'
+
+    def test_dot_runs_rejected_everywhere(self):
+        from dazzlecmd_lib.fqcn_grammar import canonicalize, FQCNParseError
+        for bad in ("dz:..meta", "dz:.meta:..x", "dz:...x"):
+            with pytest.raises(FQCNParseError):
+                canonicalize(bad)
+
+    def test_plain_step_cannot_forge_a_dot_led_name(self):
+        # a dot-led segment can ONLY arise as the operator's
+        # serialization -- ':' followed by '.' always tokenizes as the
+        # fiber operator, never as a name starting with '.'
+        from dazzlecmd_lib.fqcn_grammar import parse
+        p = parse("dz:.alias")
+        assert p.segments[0].op == ":." and p.segments[0].name == "alias"

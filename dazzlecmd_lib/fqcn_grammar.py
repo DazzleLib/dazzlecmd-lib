@@ -42,6 +42,12 @@ _NAME_RE = re.compile(_NAME)
 # segments (entities, fibers, property names) stay lowercase (v2 contract
 # R1.5; amends SD-FQCN-1 V12).
 _SUBKEY_RE = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_-]*")
+# RANK segments (C2, the 15:25 DWP + RS-4): a numeric child key selects
+# BY RANK -- integers, negatives, and fraction spellings (anonymous
+# rungs self-name by rank: "5/2"). Tree steps only, never property
+# subkeys. Accepted only when the match ends at a boundary (operator or
+# end), so "5abc" stays a NAME.
+_RANK_RE = re.compile(r"-?\d+(?:/\d+)?")
 
 
 class FQCNParseError(ValueError):
@@ -123,7 +129,14 @@ def parse(path: str, implicit_root: Optional[str] = None) -> ParsedPath:
             )
         pos += len(op)
         name_re = _SUBKEY_RE if (in_property and op == OP_PATH) else _NAME_RE
-        nm = name_re.match(path, pos)
+        nm = None
+        if not in_property:
+            rm = _RANK_RE.match(path, pos)
+            if rm and (rm.end() == len(path)
+                       or path[rm.end()] in ":.="):
+                nm = rm
+        if nm is None:
+            nm = name_re.match(path, pos)
         if nm is None or nm.start() != pos:
             raise FQCNParseError(
                 f"expected a segment name after {op!r} at index "

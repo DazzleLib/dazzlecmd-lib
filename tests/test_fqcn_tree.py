@@ -12,6 +12,7 @@ from dazzlecmd_lib.fqcn_tree import (
     build_tree,
     derive_channels,
     effective_channel_verbosity,
+    resolve_path,
 )
 from dazzlecmd_lib.property_store import PropertyStore
 
@@ -259,19 +260,34 @@ class TestNumericAddressingGaps:
     NO at two seams -- both pinned here so they must FLIP when the
     C2/B3 slice lands (these tests are the gap's tripwire)."""
 
-    def test_fraction_anon_rung_is_unaddressable_today(self):
-        # B3-PREREQUISITE: "5/2" contains '/', illegal in the segment
-        # grammar -- the anon rung's tree node cannot be canonicalized.
-        # When B3's N/M rank-segment allowance lands, REWRITE this test
-        # to assert the address RESOLVES.
+    def test_fraction_anon_rung_resolves(self):
+        # C2 LANDED (2026-07-08): the tripwire FLIPS -- rank segments
+        # parse (grammar) and resolve (tree). The anon rung answers to
+        # its self-naming rank spelling AND to rank lookup.
+        from fractions import Fraction
         from dazzle_lib.continuum import Continuum
-        from dazzlecmd_lib.fqcn_grammar import canonicalize, FQCNParseError
+        from dazzlecmd_lib.fqcn_grammar import canonicalize
         v = Continuum("kit", ranks={"config": 2, "debug": 3})
         v = v.densify_between("config", "debug")  # anon "5/2"
         g = build_tree("tst", mounts={":.kit": v})
-        assert "tst:.kit:5/2" in g  # the node EXISTS...
-        with pytest.raises(FQCNParseError):
-            canonicalize("tst:.kit:5/2")  # ...but is UNADDRESSABLE (the gap)
+        assert "tst:.kit:5/2" in g
+        canonical, _ = canonicalize("tst:.kit:5/2")   # grammar admits it
+        assert canonical == "tst:.kit:5/2"
+        assert resolve_path(g, "tst:.kit:5/2") == "tst:.kit:5/2"
+        # rank lookup by INTEGER selects by rank attr, not name
+        assert resolve_path(g, "tst:.kit:2") == "tst:.kit:config"
+        assert resolve_path(g, "tst:.kit:3") == "tst:.kit:debug"
+
+    def test_zero_law_selects_nucleus_else_self(self):
+        # THE ZERO LAW (C2 DWP, Z-B): X:0 -> the materialized rank-0
+        # seat when one exists, else X itself (degenerate nucleus).
+        from dazzle_lib.continuum import Continuum
+        v = Continuum("kit", ranks={"off": -1, "seat": 0, "on": 1})
+        g = build_tree("tst", mounts={":.kit": v})
+        assert resolve_path(g, "tst:.kit:0") == "tst:.kit:seat"
+        v2 = Continuum("k2", ranks={"config": 2, "debug": 3})
+        g2 = build_tree("tst", mounts={":.k2": v2})
+        assert resolve_path(g2, "tst:.k2:0") == "tst:.k2"  # degenerate
 
     def test_integer_anon_rung_parses_under_vocabulary_mounts(self):
         # integers are legal names -- an int-anon rung under an

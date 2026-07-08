@@ -170,9 +170,53 @@ def resolve_path(tree, path: str) -> str:
                 or path.startswith(alias + ":")):
             if best is None or len(alias) > len(best):
                 best = alias
-    if best is None:
+    if best is not None:
+        path = aliases[best] + path[len(best):]
+    if path in tree:
         return path
-    return aliases[best] + path[len(best):]
+    return _resolve_ranks(tree, path)
+
+
+def _rank_zero_target(tree, key):
+    """THE ZERO LAW (C2 DWP 2026-07-08, Z-B -- pending ratification):
+    ``X:0`` selects X's NUCLEUS -- the materialized invariant seat when
+    one exists (the child at rank 0), else X itself (the degenerate
+    nucleus IS the thing). RS-4's ``X:0 == X`` is the degenerate case."""
+    for child in tree.successors(key):
+        if tree.nodes[child].get("rank") == 0:
+            return child
+    return key
+
+
+def _resolve_ranks(tree, path: str) -> str:
+    """C2: numeric segments select BY RANK. Walk the path; a segment
+    that is not a literal child but parses as a rank picks the child
+    whose ``rank`` attribute equals it (anonymous rungs self-name by
+    rank spelling, so most hit the literal branch). Unresolvable paths
+    return unchanged (the caller's not-found handling speaks)."""
+    from fractions import Fraction
+    segs = path.split(":")
+    if not segs or segs[0] not in tree:
+        return path
+    key = segs[0]
+    for seg in segs[1:]:
+        lit = f"{key}:{seg}"
+        if lit in tree:
+            key = lit
+            continue
+        try:
+            rank = Fraction(seg)
+        except (ValueError, ZeroDivisionError):
+            return path
+        if rank == 0:
+            key = _rank_zero_target(tree, key)
+            continue
+        hits = [c for c in tree.successors(key)
+                if tree.nodes[c].get("rank") == rank]
+        if len(hits) != 1:
+            return path
+        key = hits[0]
+    return key
 
 
 def touch_canonicalize(tree, store, path: str):

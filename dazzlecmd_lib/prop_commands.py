@@ -344,6 +344,13 @@ def cmd_list(engine, path_text: Optional[str] = None) -> int:
             # exactly as the info card does (one fact, every surface)
             current = default_val = None
             value_key = NODE_VALUE_ALIASES.get(node_key)
+            if value_key is None:
+                # a value alias registered under a PRE-FOLD spelling
+                # still marks the folded node (one fact, every spelling)
+                for a, target in (tree.graph.get("aliases") or {}).items():
+                    if target == node_key and a in NODE_VALUE_ALIASES:
+                        value_key = NODE_VALUE_ALIASES[a]
+                        break
             if value_key is not None:
                 default_val = KEY_DEFAULTS.get(value_key)
                 current = engine.property_store.get(value_key)

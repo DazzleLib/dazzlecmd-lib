@@ -762,6 +762,10 @@ class AggregatorEngine:
         # reads -- hooks(engine, key) -> value|None. A claimed key is
         # READ-ONLY (derived beats the store; the authority model).
         self.derived_reads = []
+        # THE CONSUMER LIFT (C2 DWP Part 2): every aggregator gets the
+        # instance plane by default -- rdp/wtf see the same tree dz does
+        from dazzlecmd_lib.instance_plane import register_engine_defaults
+        register_engine_defaults(self)
 
         # The app's hook for pre-path global flags on the sugar intercept
         # (`dz -v .note` -- the intercept bypasses argparse, so the app

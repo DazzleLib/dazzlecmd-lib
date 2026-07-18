@@ -379,6 +379,38 @@ def register_aliases_on_tree(engine, tree):
 # --- B-8: the expose property + the generator spike (convergence DWP
 # D1/D2/D8; the plan B-8). The generated command = the ONE with a
 # handler but no top-level surface: `dz management` (the quick-read). --
+def plane_confusion_hint(engine, key):
+    """The R1.3-era gap (user probe 2026-07-18): `dz :.dazzletools:...`
+    forgives to the PROPERTY plane (pre-instance-plane rule: non-fiber
+    vocabulary meant user property) -- but the name may now be a real
+    ENTITY. When a root property read misses AND its first token names
+    a real child, say so (R-1: guidance, never silent misdirection)."""
+    node_key, dot, prop = key.partition(".")
+    if not dot or not prop or node_key != engine.command:
+        return None
+    try:
+        from dazzlecmd_lib.fqcn_tree import build_engine_tree
+        tree = build_engine_tree(engine)
+        tokens = prop.split(":")
+        first = f"{engine.command}:{tokens[0]}"
+        if first not in tree:
+            return None
+        kind = tree.nodes[first].get("role") or tree.nodes[first].get(
+            "kind", "node")
+        hint = (f"note: {first} exists (a {kind}) -- children use ':' "
+                f"({engine.command} :{tokens[0]}), properties use '.', "
+                f"and ':.' reaches machinery only")
+        if len(tokens) > 1:
+            sib = f"{engine.command}:{tokens[1]}"
+            if sib in tree and f"{first}:{tokens[1]}" not in tree:
+                sk = tree.nodes[sib].get("role") or "node"
+                hint += (f"; '{tokens[1]}' is not inside it -- "
+                         f"{sib} is a sibling ({sk})")
+        return hint
+    except Exception:
+        return None
+
+
 def node_hint(engine, key):
     """The one-node answer for a VALUELESS read of a real node: identity
     + how to look (R-1/hints doctrine; found live: `dz :.meta` said
@@ -551,6 +583,8 @@ def register_engine_defaults(engine):
         engine.node_hints = hooks = []
     if node_hint not in hooks:
         hooks.append(node_hint)
+    if plane_confusion_hint not in hooks:
+        hooks.append(plane_confusion_hint)
     # the config ring's STRUCTURAL write-refusal (Law 6/2: the file is
     # the sole true copy; the derived-read claim alone lets ABSENT keys
     # through -- the live incident, TWICE: originally pre-adb1e73, then

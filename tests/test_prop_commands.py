@@ -671,3 +671,23 @@ class TestPresentationContinuum:
         assert "standard answer" in card["help"]       # self-describing
         assert g.nodes["tst:.meta:presentation:dump"]["rank"] == 2
         assert g.nodes["tst:.meta:presentation:value"]["rank"] == -2
+
+
+class TestPlaneConfusionHint:
+    """The R1.3-era gap: a :.-led spelling naming a real ENTITY forgives
+    to the property plane and said only 'not set' -- now it names the
+    entity and the sibling relation (user probe 2026-07-18)."""
+
+    def test_entity_near_miss_is_named(self, tmp_path, capsys):
+        import os
+        from dazzlecmd_lib.engine import AggregatorEngine
+        from dazzlecmd_lib import prop_commands
+        e = AggregatorEngine(name="t", command="tst",
+                             config_dir=str(tmp_path))
+        # a minimal instance world: one kit node via the graft path
+        class K: name = "dazzletools"; virtual = False; tools = []
+        e.kits = [K()]
+        assert prop_commands.cmd_get(e, ".dazzletools:claude") == 0
+        out = capsys.readouterr().out
+        assert "tst:dazzletools exists" in out
+        assert "':.' reaches machinery only" in out

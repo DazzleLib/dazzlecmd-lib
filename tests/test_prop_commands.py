@@ -636,3 +636,19 @@ class TestReadonlyFamilies:
         # "configuration" is NOT in the ":.meta:config" family
         e = self._engine(tmp_path)
         assert e._intercept_path_form([":.meta:configx=ok"]) == ("result", 0)
+
+
+class TestConfigRingRefusalIsAnEngineDefault:
+    """The regression pin the Law-6 incident lacked TWICE: the
+    structural refusal must be wired BY DEFAULT (engine.__init__),
+    not re-registered by each app -- the consumer lift dropped the
+    app-side call and phantom writes returned. Mechanism tests are
+    not wiring tests."""
+
+    def test_default_engine_refuses_absent_config_keys(self, tmp_path, capsys):
+        from dazzlecmd_lib.engine import AggregatorEngine
+        e = AggregatorEngine(name="t", command="tst",
+                             config_dir=str(tmp_path))
+        assert e._intercept_path_form(
+            [":.meta:config.nonexistent=phantom"]) == ("result", 2)
+        assert e.property_store.get("tst:.meta:config.nonexistent") is None

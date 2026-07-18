@@ -548,3 +548,11 @@ def register_engine_defaults(engine):
         engine.node_hints = hooks = []
     if node_hint not in hooks:
         hooks.append(node_hint)
+    # the config ring's STRUCTURAL write-refusal (Law 6/2: the file is
+    # the sole true copy; the derived-read claim alone lets ABSENT keys
+    # through -- the live incident, TWICE: originally pre-adb1e73, then
+    # REGRESSED when the consumer lift rewrote the app's configure_tree
+    # and dropped the app-side registration. It lives HERE now so every
+    # consumer aggregator is protected by default.)
+    from dazzlecmd_lib.prop_commands import register_readonly_family
+    register_readonly_family(f"{engine.command}:.meta:config")

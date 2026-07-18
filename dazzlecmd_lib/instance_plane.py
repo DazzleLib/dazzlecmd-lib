@@ -401,8 +401,14 @@ def plane_confusion_hint(engine, key):
                 f"({engine.command} :{tokens[0]}), properties use '.', "
                 f"and ':.' reaches machinery only")
         if len(tokens) > 1:
+            deep = f"{first}:{':'.join(tokens[1:])}"
             sib = f"{engine.command}:{tokens[1]}"
-            if sib in tree and f"{first}:{tokens[1]}" not in tree:
+            if deep in tree:
+                dk = tree.nodes[deep].get("role") or tree.nodes[deep].get(
+                    "kind", "node")
+                hint += (f". IN FACT {deep} exists (a {dk}) -- "
+                         f"{engine.command} info :{':'.join(tokens)}")
+            elif sib in tree:
                 sk = tree.nodes[sib].get("role") or "node"
                 hint += (f"; '{tokens[1]}' is not inside it -- "
                          f"{sib} is a sibling ({sk})")

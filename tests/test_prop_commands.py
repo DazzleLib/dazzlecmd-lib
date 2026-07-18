@@ -652,3 +652,22 @@ class TestConfigRingRefusalIsAnEngineDefault:
         assert e._intercept_path_form(
             [":.meta:config.nonexistent=phantom"]) == ("result", 2)
         assert e.property_store.get("tst:.meta:config.nonexistent") is None
+
+
+class TestPresentationContinuum:
+    """P-1 (the presentation-continuum DWP, D-P1/D-P2/AC-1): the depth
+    axis mounts by default; card sits at the invariant seat (0); rungs
+    self-describe."""
+
+    def test_mounted_with_self_describing_rungs(self, tmp_path):
+        from dazzlecmd_lib.engine import AggregatorEngine
+        from dazzlecmd_lib.fqcn_tree import build_engine_tree
+        e = AggregatorEngine(name="t", command="tst",
+                             config_dir=str(tmp_path))
+        g = build_engine_tree(e)
+        assert "tst:.meta:presentation" in g
+        card = g.nodes["tst:.meta:presentation:card"]
+        assert card["rank"] == 0                       # the invariant seat
+        assert "standard answer" in card["help"]       # self-describing
+        assert g.nodes["tst:.meta:presentation:dump"]["rank"] == 2
+        assert g.nodes["tst:.meta:presentation:value"]["rank"] == -2

@@ -515,7 +515,9 @@ def register_engine_defaults(engine):
             "management",
             {ax: axis_by_name(ax).continuum()
              for ax in ("membership", "loading", "activation")})
+        from dazzlecmd_lib.presentation import PRESENTATION_CONTINUUM
         engine.tree_mounts = {
+            ":.meta:presentation": PRESENTATION_CONTINUUM,
             ":.meta:verb:management": mgmt,
             ":.meta:verb:projection": axis_by_name("projection").continuum(),
             ":.meta:verb:mode": MODE_SPACE,
@@ -530,9 +532,10 @@ def register_engine_defaults(engine):
             ":.meta:verb:loading": ":.meta:verb:management:loading",
             ":.meta:verb:activation": ":.meta:verb:management:activation",
         }
+    from dazzlecmd_lib.presentation import graft_presentation_help
     for ext in (graft_instance_plane, graft_vk_projections,
                 graft_config_ring, graft_kit_frame_projections,
-                register_aliases_on_tree):
+                graft_presentation_help, register_aliases_on_tree):
         if ext not in engine.tree_extensions:
             engine.tree_extensions.append(ext)
     for hook in (derived_instance_read, derived_config_read):

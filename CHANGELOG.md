@@ -8,6 +8,68 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 This repository is the standalone home of the library, extracted from the dazzlecmd monorepo at v0.8.55 (2026-06-24). Commit history through 0.8.55 lives in the [dazzlecmd](https://github.com/DazzleTools/dazzlecmd) repository's git log (under `packages/dazzlecmd-lib/`); this CHANGELOG and all subsequent history continue here.
 
+## [0.10.31-alpha] - 2026-07-19
+
+### Fixed
+- Kit-frame projections restored: the graft now resolves its anchor through the alias table, so re-homing an axis can never silently orphan the projections again (they had been absent since the level machinery moved inside `:.meta`).
+
+### Added
+- The plane-confusion hint: a `:.`-spelled read that names a real entity (`dz :.dazzletools:claude`) now explains the operator rule and points at the real node -- including "IN FACT dz:dazzletools:claude exists (a projection)" when the deep path is real.
+
+## [0.10.30-alpha] - 2026-07-18
+
+### Added
+- The presentation continuum mounts as an engine default at `:.meta:presentation`: five self-describing depth rungs (`value < row < card < full < dump`, card at the invariant seat 0). Reads compose a scope (self/children/subtree) with a depth: `info` = self@card, `list` = children@row, `tree` = subtree@row.
+
+## [0.10.29-alpha] - 2026-07-18
+
+### Fixed
+- The config ring's write refusal is now an engine default and STRUCTURAL: the whole `:.meta:config` family rejects property writes whether or not the key exists in the file (previously, absent keys could take phantom values). Every consumer aggregator is protected without any app-side wiring.
+- `READONLY_FAMILIES`: a registry for family-wide write refusal, boundary-aware across both separators.
+
+## [0.10.28-alpha] - 2026-07-18
+
+### Added
+- THE CONSUMER LIFT: the instance plane becomes an engine default. Every aggregator built on the library now gets the derived tree's full machinery automatically -- instances under containment paths with levels and instance-of handles, virtual-kit projections, the config ring, the alias registry, derived/counterpart reads, and node hints. Consumer CLIs (e.g. `rdp :.`) list their kits and tools with zero extra wiring.
+
+## [0.10.27-alpha] - 2026-07-18
+
+### Added
+- Supra composition: bare `:+` / `:++` are legal (ascent is deterministic -- previously a parse error), and `:+<rank|name>` performs the co-level move (`remove:+1` selects `add`). Descent, ring entry, and ascent compose freely: `level:.0:+` dereferences to the seat and walks back up.
+- THE ZERO LAW: plain `X:0` is X itself; `X:.0` enters the ring and selects the rank-0 seat -- the operator carries the distinction.
+
+### Changed
+- A leading `.` on a numeric segment is the ring operator's marker, never a decimal point (`:.5` means rank 5, not one-half).
+- Grammar pins: `:.` parses as operator + bare name (no name ever contains a dot); dot-runs rejected everywhere; a plain `:` step cannot forge a dot-led name.
+
+## [0.10.26-alpha] - 2026-07-18
+
+### Added
+- Rank addresses dereference end-to-end: the grammar admits `-N` and `N/M` segments, and tree resolution selects children by rank (`dz info :.meta:level:-2` renders the tool rung; `:-3/2` reaches the fractional rung). Anonymous rungs answer to their self-naming rank spellings.
+
+## [0.10.25-alpha] - 2026-07-08
+
+### Added
+- Counterpart reads (`engine.fallthrough_reads`): a property unset at one of a ring identity's addresses answers from its counterpart, with the true source echoed (`x  (from dz:core:...)`).
+
+## [0.10.24-alpha] - 2026-07-08
+
+### Added
+- Node hints (`engine.node_hints`): reading a real node that has no value answers with its identity and how to inspect it (card and listing commands), instead of a bare "is not set".
+
+## [0.10.23-alpha] - 2026-07-08
+
+### Added
+- `build_engine_tree` honors `engine.tree_mounts` and `engine.tree_aliases`: an aggregator may supply its own mount table and alias map (defaults unchanged when absent).
+
+### Docs
+- README catches up with the FQCN arc: the address grammar, the property surface, the derived tree and its seams, verb axes, and the interrogation cards.
+
+## [0.10.22-alpha] - 2026-07-06
+
+### Added
+- Derived property reads (`engine.derived_reads`): hooks answer reads before the store (echoed `(derived)`), and a claimed key is read-only on writes -- the authority model for values that come from an item's own data.
+
 ## [0.10.21-alpha] - 2026-07-06
 
 The surface-matrix sweep's cross-surface fixes: `build_engine_tree` applies engine-registered tree extensions so EVERY surface (info card and plane listings alike) sees the same tree -- app verbs now appear in `dz :.meta:verb:.` listings, not just cards; structure columns pad dynamically (a >=14-char name like `materialization` no longer fuses into its kind).

@@ -340,7 +340,13 @@ def graft_kit_frame_projections(engine, tree):
     handle back to its definition. Supersedes the Row-3 heuristic with
     declared relations."""
     cmd = engine.command
-    kit_rung = f"{cmd}:.level:kit"
+    # ALIAS-PROOF (the fold regression, found by the tutorial's example
+    # battery 2026-07-18): the rung moved to :.meta:level:kit at the
+    # meta fold and this graft's quiet `not in tree` guard swallowed
+    # the miss -- the projections were silently absent for ten days.
+    # Resolving through the alias table survives any future re-homing.
+    from dazzlecmd_lib.fqcn_tree import resolve_path
+    kit_rung = resolve_path(tree, f"{cmd}:.level:kit")
     verb_root = f"{cmd}:.meta:verb"
     if kit_rung not in tree or verb_root not in tree:
         return

@@ -691,3 +691,21 @@ class TestPlaneConfusionHint:
         out = capsys.readouterr().out
         assert "tst:dazzletools exists" in out
         assert "':.' reaches machinery only" in out
+
+
+class TestKitFrameProjectionsExist:
+    """The fold regression's wiring pin (2026-07-18): the kit-frame
+    projection door must EXIST on a default engine -- the graft's quiet
+    guard hid ten days of absence after the rung re-homed."""
+
+    def test_default_engine_grows_the_projection_door(self, tmp_path):
+        from dazzlecmd_lib.engine import AggregatorEngine
+        from dazzlecmd_lib.fqcn_tree import build_engine_tree
+        e = AggregatorEngine(name="t", command="tst",
+                             config_dir=str(tmp_path))
+        g = build_engine_tree(e)
+        door = "tst:.meta:level:kit:management"
+        assert door in g, "the kit-frame projection door is ABSENT"
+        assert g.nodes[door]["role"] == "projection"
+        pole = f"{door}:membership:add"
+        assert pole in g and g.nodes[pole].get("source") in g

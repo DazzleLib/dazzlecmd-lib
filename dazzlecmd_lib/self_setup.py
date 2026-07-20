@@ -494,6 +494,7 @@ def run_self_setup(command_names: List[str],
                    assume_yes: bool = False,
                    dry_run: bool = False,
                    emit_shell_fix: bool = False,
+                   clip: bool = False,
                    input_fn=input,
                    print_fn=print) -> int:
     """The full ``setup <self>`` flow: diagnose, explain, offer the fix.
@@ -533,7 +534,8 @@ def run_self_setup(command_names: List[str],
             from dazzlecmd_lib import shell_fix
             shell_fix.emit_current_shell_fix(report.scripts_dir,
                                              brand=brand,
-                                             print_fn=print_fn)
+                                             print_fn=print_fn,
+                                             clipboard=clip)
         else:
             print_fn("Everything is in order.")
         return 0
@@ -580,7 +582,8 @@ def run_self_setup(command_names: List[str],
                              "(no registry change):")
                     shell_fix.emit_current_shell_fix(report.scripts_dir,
                                                      brand=brand,
-                                                     print_fn=print_fn)
+                                                     print_fn=print_fn,
+                                                     clipboard=clip)
                     return 1
             else:
                 target = (python_dash_m_target() or package_name
@@ -594,12 +597,18 @@ def run_self_setup(command_names: List[str],
             from dazzlecmd_lib import shell_fix
             shell_fix.emit_current_shell_fix(report.scripts_dir,
                                              brand=brand,
-                                             print_fn=print_fn)
+                                             print_fn=print_fn,
+                                             clipboard=clip)
         return 0 if (result.changed or "already contains" in result.message) \
             else 1
 
     for line in advise_posix(report.scripts_dir):
         print_fn(line)
+    # POSIX gets the same either/or as Windows (v0.10.33 symmetry):
+    # persistent rc-line above, session-only heal below.
+    from dazzlecmd_lib import shell_fix
+    shell_fix.emit_current_shell_fix(report.scripts_dir, brand=brand,
+                                     print_fn=print_fn, clipboard=clip)
     return 1
 
 

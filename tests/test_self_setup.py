@@ -387,9 +387,14 @@ class TestRunSelfSetup:
         monkeypatch.setenv("SHELL", "/bin/bash")
         monkeypatch.setattr(self_setup, "persisted_user_path", lambda: None)
         monkeypatch.setattr(self_setup.os, "name", "posix")
+        from dazzlecmd_lib import shell_fix
+        monkeypatch.setattr(shell_fix, "_temp_dir", lambda: str(tmp_path))
         rc = self_setup.run_self_setup(["agg"])
         assert rc == 1
-        assert "~/.bashrc" in capsys.readouterr().out
+        out = capsys.readouterr().out
+        assert "~/.bashrc" in out
+        # v0.10.33 symmetry: POSIX also gets the session-only heal.
+        assert "agg-path.sh" in out
 
 
 # ---------------------------------------------------------------------------

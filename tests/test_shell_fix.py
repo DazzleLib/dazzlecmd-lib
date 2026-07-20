@@ -137,14 +137,32 @@ class TestEmitCurrentShellFix:
         monkeypatch.setattr(shell_fix, "_temp_dir", lambda: str(tmp_path))
         monkeypatch.setattr(shell_fix, "detect_invoking_shell",
                             lambda: SHELL_CMD)
-        monkeypatch.setattr(shell_fix, "load_clipboard", lambda t: True)
+        touched = []
+        monkeypatch.setattr(shell_fix, "load_clipboard",
+                            lambda t: touched.append(t) or True)
         out = []
         emit_current_shell_fix(SCRIPTS_DIR, brand="agg",
                                print_fn=out.append)
         joined = "\n".join(out)
         assert "agg-path.cmd" in joined
-        assert "clipboard" in joined
         assert "agg-path.ps1" not in joined  # one dialect only
+        # Clipboard is USER-OWNED STATE: never touched by default.
+        assert touched == []
+        assert "clipboard" not in joined
+
+    def test_clipboard_only_on_explicit_opt_in(self, tmp_path,
+                                               monkeypatch):
+        monkeypatch.setattr(shell_fix, "_temp_dir", lambda: str(tmp_path))
+        monkeypatch.setattr(shell_fix, "detect_invoking_shell",
+                            lambda: SHELL_CMD)
+        touched = []
+        monkeypatch.setattr(shell_fix, "load_clipboard",
+                            lambda t: touched.append(t) or True)
+        out = []
+        emit_current_shell_fix(SCRIPTS_DIR, brand="agg",
+                               print_fn=out.append, clipboard=True)
+        assert len(touched) == 1 and "agg-path.cmd" in touched[0]
+        assert "clipboard" in "\n".join(out)
 
     def test_unknown_shell_prints_all_labeled(self, tmp_path, monkeypatch):
         monkeypatch.setattr(shell_fix, "_temp_dir", lambda: str(tmp_path))

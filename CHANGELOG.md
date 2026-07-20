@@ -8,6 +8,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 This repository is the standalone home of the library, extracted from the dazzlecmd monorepo at v0.8.55 (2026-06-24). Commit history through 0.8.55 lives in the [dazzlecmd](https://github.com/DazzleTools/dazzlecmd) repository's git log (under `packages/dazzlecmd-lib/`); this CHANGELOG and all subsequent history continue here.
 
+## [0.10.33-alpha] - 2026-07-19
+
+### Changed
+- **The clipboard is never touched without consent.** `shell_fix.emit_current_shell_fix` defaults to `clipboard=False`; the new `--clip` flag on the setup verb is the opt-in (v0.10.32 auto-loaded the emitted line, silently overwriting whatever the user had copied -- user-owned state, corrected within hours of release). Pinned by test: default emission records zero clipboard calls.
+- POSIX symmetry: the broken-install path now emits the session-only heal (`source .../<brand>-path.sh`) alongside the rc-file advice -- the same either/or Windows gets.
+
 ## [0.10.32-alpha] - 2026-07-19
 
 ### Added

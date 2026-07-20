@@ -369,6 +369,7 @@ def setup_handler(args, engine, projects, kits, project_root) -> int:
             assume_yes=getattr(args, "yes", False),
             dry_run=getattr(args, "dry_run", False),
             emit_shell_fix=getattr(args, "emit_shell_fix", False),
+            clip=getattr(args, "clip", False),
         )
 
     # Resolve the tool via engine.find_project — supports short name,

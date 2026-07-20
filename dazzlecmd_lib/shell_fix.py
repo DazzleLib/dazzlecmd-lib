@@ -272,11 +272,14 @@ def load_clipboard(text: str) -> bool:
 
 def emit_current_shell_fix(scripts_dir: str, brand: str = "dz",
                            print_fn=print,
-                           clipboard: bool = True) -> None:
+                           clipboard: bool = False) -> None:
     """Write the scripts and print the healing instructions.
 
-    Detected shell -> one invocation line (clipboard-loaded when
-    possible, loudly announced). Unknown shell -> all dialects, labeled.
+    Detected shell -> one invocation line. Unknown shell -> all
+    dialects, labeled. The user's clipboard is NEVER touched unless
+    ``clipboard=True`` (the ``--clip`` opt-in): clipboard content is
+    user-owned state -- a fix tool has no business overwriting what
+    might be a password or an hour of copied work uninvited.
     """
     script_paths = write_fix_scripts(scripts_dir, brand=brand)
     shell = detect_invoking_shell()

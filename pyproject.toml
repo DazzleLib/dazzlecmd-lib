@@ -42,8 +42,10 @@ dependencies = [
     # metadata preservation (ACLs/ADS/timestamps/xattrs), and dazzlecmd_lib.config
     # uses dazzle_filekit.atomic_write_json for the atomic config/properties write
     # -- one home for file machinery rather than re-implementing it per module.
-    # filekit is the canonical home of that code. >=0.2.4 ships atomic_write_*.
-    "dazzle-filekit>=0.2.4",
+    # filekit is the canonical home of that code. >=0.2.4 ships atomic_write_*;
+    # >=0.3.3 ships pathenv (declared-platform PATH-value helpers), which
+    # self_setup delegates its comparators to (dazzlecmd#103 homing).
+    "dazzle-filekit>=0.3.3",
     # The derived FQCN tree (fqcn_tree.py) is built on a NetworkX DiGraph
     # BEHIND the module's seam; the nx API subset consumed there is the
     # interface contract dazzle-graph-lib will implement (the swap is an
@@ -93,6 +95,11 @@ testpaths = ["tests"]
 python_files = "test_*.py"
 python_functions = "test_*"
 python_classes = "Test*"
+# tests/one-offs/ is a scratchpad (one-offs-vs-regression policy, mirrored
+# from the dazzlecmd app config): experiments and standalone harnesses --
+# notably selfsetup-standalone/conftest.py, which STUBS sys.modules
+# entries and must never execute during the real suite's collection.
+norecursedirs = [".*", "build", "dist", "*.egg", "venv", "one-offs"]
 
 [tool.repokit-common]
 version-source = "dazzlecmd_lib/_version.py"

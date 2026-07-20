@@ -2239,11 +2239,18 @@ class AggregatorEngine:
         if self.is_root and (
             command_name in reserved or command_name.startswith("-")
         ):
+            # Variant-2 contract verbs (#104): everything after the FIRST
+            # `--` belongs to the LEVEL-OBJECT, not the verb -- split it
+            # off before argparse can reject it as "unrecognized
+            # arguments" (the v0.7.46 documented-but-unwired forwarding).
+            from dazzlecmd_lib.verb_contracts import split_level_args
+            head, level_args = split_level_args(list(argv))
             sys_argv_backup = sys.argv
-            sys.argv = [self.command] + list(argv)
+            sys.argv = [self.command] + head
             try:
                 args = parser.parse_args()
                 if hasattr(args, "_meta"):
+                    args.level_args = level_args
                     return self.meta_registry.dispatch(
                         args, self, self.projects, self.kits, self.project_root
                     )

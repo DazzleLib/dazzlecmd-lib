@@ -21,7 +21,8 @@ Supported matcher keys (leaf):
         Values are never logged.
 
     command_available: "bun"
-        True if shutil.which(name) resolves (PATH + PATHEXT on Windows).
+        True if the executable resolves on PATH (via
+        paths.which_with_pathext; PATHEXT-aware on Windows).
 
     uname_contains: "microsoft"
         Case-insensitive substring match against a composite PlatformInfo
@@ -112,7 +113,8 @@ def _env_var_equals(spec: dict) -> bool:
 def _command_available(name: str) -> bool:
     if not isinstance(name, str) or not name:
         return False
-    return shutil.which(name) is not None
+    from dazzlecmd_lib.paths import which_with_pathext
+    return which_with_pathext(name) is not None
 
 
 def _uname_composite(platform_info: PlatformInfo) -> str:

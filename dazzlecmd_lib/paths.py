@@ -125,6 +125,40 @@ def which_with_pathext(name: str) -> Optional[str]:
     return shutil.which(name)
 
 
+def which_in_dir(name: str, directory: str) -> Optional[str]:
+    """Locate an executable `name` inside ONE directory. Full path or None.
+
+    The single-directory sibling of `which_with_pathext`: same PATHEXT
+    semantics on Windows, same executable-bit requirement on POSIX, but
+    scoped to `directory` instead of the whole PATH. Used by self-setup
+    to verify an aggregator's launcher shims exist where pip put them
+    (dazzlecmd#103).
+    """
+    if not name or not directory:
+        return None
+    return shutil.which(name, path=directory)
+
+
+def which_all_on_path(name: str) -> "list[str]":
+    """Every PATH directory's hit for executable `name`, in PATH order.
+
+    `shutil.which` stops at the first match; this returns one hit per
+    PATH entry that has the executable (PATHEXT-aware on Windows).
+    Used by self-setup to surface shadowing copies of a command
+    (dazzlecmd#103).
+    """
+    if not name:
+        return []
+    hits = []
+    for d in os.environ.get("PATH", "").split(os.pathsep):
+        if not d.strip():
+            continue
+        hit = shutil.which(name, path=d)
+        if hit:
+            hits.append(hit)
+    return hits
+
+
 # Link primitives relocated to the constitutional namespace
 # ``dazzlecmd_lib.core.links`` in v0.8.0. Re-exported here for backward
 # compatibility -- existing ``from dazzlecmd_lib.paths import is_linked_project``

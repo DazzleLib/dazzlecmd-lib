@@ -1002,17 +1002,19 @@ def _check_prefer_preconditions(entry, tool_dir):
     Script paths that are absolute are checked as-is. Relative paths are
     joined against tool_dir (consistent with every runner's file lookup).
     """
+    from dazzlecmd_lib.paths import which_with_pathext
+
     interpreter = entry.get("interpreter")
     if interpreter:
-        if not shutil.which(interpreter):
+        if not which_with_pathext(interpreter):
             return False, f"interpreter '{interpreter}' not on PATH"
 
     if entry.get("npx"):
-        if not shutil.which("npx"):
+        if not which_with_pathext("npx"):
             return False, "npx not on PATH"
 
     if entry.get("npm_script"):
-        if not shutil.which("npm"):
+        if not which_with_pathext("npm"):
             return False, "npm not on PATH"
 
     script_path = entry.get("script_path")

@@ -258,22 +258,118 @@ def setup_parser_factory(subparsers):
     )
     p.add_argument(
         "tool", nargs="?", default=None,
-        help="Tool name or FQCN. Omit to list tools with setup declared.",
+        help="Tool name or FQCN. Omit to list tools with setup declared. "
+             "Name the aggregator itself to run its own PATH bootstrap.",
+    )
+    p.add_argument(
+        "-y", "--yes", action="store_true",
+        help="Skip confirmation prompts (any setup target that asks; "
+             "the aggregator self-setup prompts before changing PATH).",
+    )
+    p.add_argument(
+        "--dry-run", action="store_true",
+        help="Show what setup would do without doing it: the resolved "
+             "command for a tool, the would-be PATH change for the "
+             "aggregator itself.",
+    )
+    p.add_argument(
+        "--emit-shell-fix", action="store_true",
+        help="Machine channel: print exactly the one line that heals the "
+             "CURRENT shell's PATH (writes per-shell fix scripts to the "
+             "temp dir). Pipe-friendly; diagnostics go to stderr.",
     )
     p.set_defaults(_meta="setup")
+
+
+def _self_setup_identity(engine):
+    """The aggregator's own names + best-effort package identity.
+
+    Returns (command_names, package_name, package_location). The
+    ``python -m`` package (when the process was launched that way) is
+    accepted as a self-name too, so whatever the user typed after
+    ``python -m`` also works as the setup target.
+    """
+    from . import self_setup as _self_setup
+
+    command_names = []
+    for candidate in (getattr(engine, "command", None),
+                      getattr(engine, "name", None)):
+        if candidate and candidate not in command_names:
+            command_names.append(candidate)
+
+    package_name = _self_setup.python_dash_m_target()
+    package_location = None
+    if package_name:
+        mod = _sys.modules.get(package_name)
+        mod_file = getattr(mod, "__file__", None)
+        if mod_file:
+            import os as _os
+            package_location = _os.path.dirname(mod_file)
+        if package_name not in command_names:
+            command_names.append(package_name)
+    return command_names, package_name, package_location
 
 
 def setup_handler(args, engine, projects, kits, project_root) -> int:
     """Default handler for ``setup``.
 
     With no tool argument: lists tools that declare a setup block.
+    With the aggregator's own name (root token, alias, or the
+    ``python -m`` package): runs the self-setup PATH bootstrap
+    (dazzlecmd#103) instead of tool resolution.
     With a tool argument: resolves the tool's setup block (platform +
     user overrides + _vars) and executes the resolved command.
     """
+    from . import self_setup as _self_setup
+
     tool_name = getattr(args, "tool", None)
 
+    command_names, package_name, package_location = \
+        _self_setup_identity(engine)
+
     if not tool_name:
+        orphan_tail = list(getattr(args, "level_args", []) or [])
+        if orphan_tail:
+            # Tester finding (2026-07-19): a `--` tail with no target
+            # was silently dropped; say so instead.
+            print(_colors.warn(
+                "note: no setup target given; args after '--' were "
+                f"ignored: {orphan_tail}. Usage: setup <target> -- "
+                "<target-args>"), file=_sys.stderr)
+        hint = _self_setup.first_run_hint(
+            command_names, package_name=package_name,
+            package_location=package_location)
+        if hint:
+            print(_colors.warn(hint), file=_sys.stderr)
         return render_setup_listing(projects)
+
+    level_args = list(getattr(args, "level_args", []) or [])
+
+    if tool_name in command_names:
+        if level_args:
+            # Variant-2 contract (#104): the self-target defines no
+            # level-params yet; the space after `--` is reserved.
+            print(_colors.warn(
+                "note: self-setup takes its options before '--' "
+                f"(--yes/--dry-run); ignoring reserved trailing args: "
+                f"{level_args}"), file=_sys.stderr)
+        # Shadow visibility (#103 criterion 5): if a real tool bears the
+        # aggregator's name, say which one and how to reach its setup.
+        shadowed, _sctx = engine.find_project(tool_name)
+        if shadowed is not None:
+            shadow_name = shadowed.fqcn or shadowed.name
+            print(_colors.warn(
+                f"note: {tool_name!r} is also a tool ({shadow_name}) -- "
+                f"running the aggregator's self-setup; use 'setup "
+                f"{shadow_name}' for the tool."), file=_sys.stderr)
+        return _self_setup.run_self_setup(
+            command_names,
+            package_name=package_name,
+            package_location=package_location,
+            assume_yes=getattr(args, "yes", False),
+            dry_run=getattr(args, "dry_run", False),
+            emit_shell_fix=getattr(args, "emit_shell_fix", False),
+        )
 
     # Resolve the tool via engine.find_project — supports short name,
     # canonical FQCN, alias FQCN, and kit-qualified shortcuts uniformly.
@@ -350,9 +446,22 @@ def setup_handler(args, engine, projects, kits, project_root) -> int:
     # we run the author-declared command via the platform shell.
     import subprocess as _subprocess
 
-    print(f"Running setup for {project.fqcn or project.name}...")
+    # Variant-2 contract (#104): forward the level-args (everything the
+    # user wrote after `--`) into the tool's setup invocation -- the
+    # v0.7.46 documented forwarding, wired for the first time.
+    if level_args:
+        from .verb_contracts import join_for_shell
+        command = f"{command} {join_for_shell(level_args)}"
+
+    dry_run = getattr(args, "dry_run", False)
+    label = "[dry-run] Would run" if dry_run else "Running"
+    print(f"{label} setup for {project.fqcn or project.name}...")
     print(f"  {command}")
     _sys.stdout.flush()  # flush before subprocess to avoid output interleaving
+
+    # Verb-level --dry-run: show the resolved invocation, run nothing.
+    if dry_run:
+        return 0
 
     result = _subprocess.run(command, shell=True, cwd=project.directory)
     return result.returncode

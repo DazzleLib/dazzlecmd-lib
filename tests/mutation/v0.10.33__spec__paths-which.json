@@ -1,0 +1,21 @@
+{
+  "test_command": [
+    "C:/Python312/python.exe", "-m", "pytest", "-q", "-p", "no:cacheprovider",
+    "-W", "ignore::DeprecationWarning",
+    "tests/test_which.py", "tests/test_self_setup.py"
+  ],
+  "mutations": [
+    {"id": "m01", "file": "dazzlecmd_lib/paths.py", "original": "RUNNABLE_EXTS = (\".com\", \".exe\", \".bat\", \".cmd\")", "mutated": "RUNNABLE_EXTS = (\".exe\", \".com\", \".bat\", \".cmd\")", "note": "wrong list order: default fallback no longer matches cmd.exe's PATHEXT order (.com before .exe)"},
+    {"id": "m02", "file": "dazzlecmd_lib/paths.py", "original": "return _PERCENT_VAR.sub(lambda m: env.get(m.group(1), m.group(0)), entry)", "mutated": "return _PERCENT_VAR.sub(lambda m: env.get(m.group(1), \"\"), entry)", "note": "wrong default: an unknown %VAR% is erased instead of left as written"},
+    {"id": "m03", "file": "dazzlecmd_lib/paths.py", "original": "if os.path.splitext(name)[1].lower() in RUNNABLE_EXTS:", "mutated": "if os.path.splitext(name)[1] in RUNNABLE_EXTS:", "note": "dropped normalization: 'tool.EXE' is no longer recognised as already carrying a runnable extension"},
+    {"id": "m04", "file": "dazzlecmd_lib/paths.py", "original": "in RUNNABLE_EXTS:\n        return [\"\"]", "mutated": "in RUNNABLE_EXTS:\n        return []", "note": "a name with a runnable extension is never tried at all (should be tried as given, once)"},
+    {"id": "m05", "file": "dazzlecmd_lib/paths.py", "original": "listed = [e.strip().lower() for e in (pathext or \"\").split(_WIN_PATHSEP) if e.strip()]", "mutated": "listed = [e.strip() for e in (pathext or \"\").split(_WIN_PATHSEP) if e.strip()]", "note": "dropped normalization: an upper-case PATHEXT (the Windows default is '.COM;.EXE;...') matches nothing in RUNNABLE_EXTS"},
+    {"id": "m06", "file": "dazzlecmd_lib/paths.py", "original": "return runnable or list(RUNNABLE_EXTS)", "mutated": "return runnable", "note": "removed fallback: PATHEXT that lists nothing runnable yields no candidates instead of the default set"},
+    {"id": "m07", "file": "dazzlecmd_lib/paths.py", "original": "folder = _expand_percent_vars(raw.strip().strip('\"'), env)", "mutated": "folder = _expand_percent_vars(raw.strip(), env)", "note": "dropped normalization: a quoted PATH entry is probed with its quotes and never matches"},
+    {"id": "m08", "file": "dazzlecmd_lib/paths.py", "original": "if first_per_folder:\n                    break", "mutated": "if not first_per_folder:\n                    break", "note": "boolean flip: default mode stops after the first hit in a folder; first_per_folder reports every extension hit"},
+    {"id": "m09", "file": "dazzlecmd_lib/paths.py", "original": "if not _IS_WINDOWS:\n        return shutil.which(name)", "mutated": "if _IS_WINDOWS:\n        return shutil.which(name)", "note": "wrong branch: on Windows which_with_pathext falls back to shutil.which, which consults the current directory and extensionless files"},
+    {"id": "m10", "file": "dazzlecmd_lib/paths.py", "original": "hits = windows_candidates(name, os.environ.get(\"PATH\", \"\"), os.environ.get(\"PATHEXT\"))", "mutated": "hits = windows_candidates(name, os.environ.get(\"PATH\", \"\"), None)", "note": "wrong environment key: PATHEXT is ignored and the default runnable set is always used"},
+    {"id": "m11", "file": "dazzlecmd_lib/paths.py", "original": "hits = windows_candidates(name, directory, os.environ.get(\"PATHEXT\"))", "mutated": "hits = windows_candidates(name, os.environ.get(\"PATH\", \"\"), os.environ.get(\"PATHEXT\"))", "note": "swapped argument: which_in_dir searches the whole PATH instead of ONLY the given directory"},
+    {"id": "m12", "file": "dazzlecmd_lib/paths.py", "original": "os.environ.get(\"PATHEXT\"), first_per_folder=True)", "mutated": "os.environ.get(\"PATHEXT\"), first_per_folder=False)", "note": "wrong default: which_all_on_path lists every extension hit per folder instead of one hit per PATH entry"}
+  ]
+}

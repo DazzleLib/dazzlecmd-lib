@@ -1,0 +1,51 @@
+{
+  "harness": {
+    "name": "mutation_sweep.py",
+    "version": "0.2.0"
+  },
+  "environment": {
+    "python": "3.12.0",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "root": ".",
+    "test_command": [
+      "C:/Python312/python.exe",
+      "-m",
+      "pytest",
+      "-q",
+      "-p",
+      "no:cacheprovider",
+      "-W",
+      "ignore::DeprecationWarning",
+      "tests/test_which.py",
+      "tests/test_self_setup.py"
+    ],
+    "timestamp": "2026-10-09T02:00:08-04:00"
+  },
+  "results": [
+    {
+      "id": "m10",
+      "file": "dazzlecmd_lib/paths.py",
+      "note": "Round 2 (survived round 1): which_with_pathext ignores the environment's PATHEXT.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "4/test_which_with_pathext_honour0')\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000195DE97E0C0>\nwindows = None\n\n    def test_which_with_pathext_honours_the_environments_pathext_order(tmp_path, monkeypatch, windows):\n        \"\"\"m10 (mutation sweep survivor): the wrapper reads PATHEXT from the\n        environment and keeps ITS order -- it does not substitute the default.\"\"\"\n        made = _layout(tmp_path, [(\"d1\", [\"tool.exe\", \"tool.cmd\"])])\n        monkeypatch.setenv(\"PATH\", str(made[\"d1\"]))\n        monkeypatch.setenv(\"PATHEXT\", \".CMD;.EXE\")\n        got = which_with_pathext(\"tool\")\n>       assert got is not None and _same(got, made[\"d1\"] / \"tool.cmd\")\nE       AssertionError: assert ('C:\\\\Users\\\\<user>\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-<user>\\\\pytest-12694\\\\test_which_with_pathext_honour0\\\\d1\\\\tool.exe' is not None and False)\nE        +  where False = _same('C:\\\\Users\\\\<user>\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-<user>\\\\pytest-12694\\\\test_which_with_pathext_honour0\\\\d1\\\\tool.exe', (WindowsPath('C:/Users/<user>/AppData/Local/Temp/pytest-of-<user>/pytest-12694/test_which_with_pathext_honour0/d1') / 'tool.cmd'))\n\ntests\\test_which.py:148: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_which.py::test_which_with_pathext_honours_the_environments_pathext_order\n1 failed, 60 passed in 1.18s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_which.py::test_which_with_pathext_honours_the_environments_pathext_order"
+      ]
+    }
+  ],
+  "summary": {
+    "killed": 1
+  },
+  "anomalies": [],
+  "overlap": {
+    "kills": {
+      "tests/test_which.py::test_which_with_pathext_honours_the_environments_pathext_order": [
+        "m10"
+      ]
+    },
+    "identical": [],
+    "contained": [],
+    "killed_without_names": []
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "test_command": [
+    "C:/Python312/python.exe", "-m", "pytest", "-q", "-p", "no:cacheprovider",
+    "-W", "ignore::DeprecationWarning",
+    "tests/test_which.py", "tests/test_self_setup.py"
+  ],
+  "mutations": [
+    {"id": "m10", "file": "dazzlecmd_lib/paths.py", "original": "hits = windows_candidates(name, os.environ.get(\"PATH\", \"\"), os.environ.get(\"PATHEXT\"))", "mutated": "hits = windows_candidates(name, os.environ.get(\"PATH\", \"\"), None)", "note": "Round 2 (survived round 1): which_with_pathext ignores the environment's PATHEXT."}
+  ]
+}

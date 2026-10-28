@@ -1,0 +1,312 @@
+{
+  "harness": {
+    "name": "mutation_sweep.py",
+    "version": "0.2.0"
+  },
+  "environment": {
+    "python": "3.12.0",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "root": ".",
+    "test_command": [
+      "C:/Python312/python.exe",
+      "-m",
+      "pytest",
+      "-q",
+      "-p",
+      "no:cacheprovider",
+      "-W",
+      "ignore::DeprecationWarning",
+      "tests/test_which.py",
+      "tests/test_self_setup.py"
+    ],
+    "timestamp": "2026-10-09T01:59:33-04:00"
+  },
+  "results": [
+    {
+      "id": "m01",
+      "file": "dazzlecmd_lib/paths.py",
+      "note": "wrong list order: default fallback no longer matches cmd.exe's PATHEXT order (.com before .exe)",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": ".......................F....................................             [100%]\n================================== FAILURES ===================================\n_________________ test_runnable_set_is_cmd_exe_default_order __________________\n\n    def test_runnable_set_is_cmd_exe_default_order():\n>       assert RUNNABLE_EXTS == (\".com\", \".exe\", \".bat\", \".cmd\")\nE       AssertionError: assert ('.exe', '.co....bat', '.cmd') == ('.com', '.ex....bat', '.cmd')\nE         \nE         At index 0 diff: '.exe' != '.com'\nE         Use -v to get more diff\n\ntests\\test_which.py:218: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_which.py::test_runnable_set_is_cmd_exe_default_order - Asse...\n1 failed, 59 passed in 1.05s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_which.py::test_runnable_set_is_cmd_exe_default_order"
+      ]
+    },
+    {
+      "id": "m02",
+      "file": "dazzlecmd_lib/paths.py",
+      "note": "wrong default: an unknown %VAR% is erased instead of left as written",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "..................F.........................................             [100%]\n================================== FAILURES ===================================\n_________________ test_unknown_percent_var_is_left_as_written _________________\n\ntmp_path = WindowsPath('C:/Users/<user>/AppData/Local/Temp/pytest-of-<user>/pytest-12681/test_unknown_percent_var_is_le0')\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001916C8EC560>\n\n    def test_unknown_percent_var_is_left_as_written(tmp_path, monkeypatch):\n        monkeypatch.delenv(\"DCL_NOPE\", raising=False)\n        made = _layout(tmp_path, [(\"%DCL_NOPE%\", [\"tool.cmd\"])])\n        hits = windows_candidates(\"tool\", str(made[\"%DCL_NOPE%\"]), PATHEXT)\n>       assert hits and _same(hits[0], made[\"%DCL_NOPE%\"] / \"tool.cmd\")\nE       assert ([])\n\ntests\\test_which.py:175: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_which.py::test_unknown_percent_var_is_left_as_written - ass...\n1 failed, 59 passed in 1.09s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_which.py::test_unknown_percent_var_is_left_as_written"
+      ]
+    },
+    {
+      "id": "m03",
+      "file": "dazzlecmd_lib/paths.py",
+      "note": "dropped normalization: 'tool.EXE' is no longer recognised as already carrying a runnable extension",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "........................             [100%]\n================================== FAILURES ===================================\n___ test_conformance_table[name-with-uppercase-extension-is-tried-as-given] ___\n\ntmp_path = WindowsPath('C:/Users/<user>/AppData/Local/Temp/pytest-of-<user>/pytest-12682/test_conformance_table_name_wi0')\ncase_id = 'name-with-uppercase-extension-is-tried-as-given'\nfolders = [('d1', ['tool.CMD'])], pathext = '.COM;.EXE;.BAT;.CMD;.VBS;.JS;.PY'\nname = 'tool.CMD', winner = 'd1/tool.CMD'\n\n    @pytest.mark.parametrize(\"case_id,folders,pathext,name,winner\", CONFORMANCE,\n                             ids=[c[0] for c in CONFORMANCE])\n    def test_conformance_table(tmp_path, case_id, folders, pathext, name, winner):\n        made = _layout(tmp_path, folders)\n        path = \";\".join(str(made[f]) for f, _ in folders)\n        hits = windows_candidates(name, path, pathext)\n        if winner is None:\n            assert hits == []\n        else:\n            folder, file = winner.split(\"/\")\n>           assert hits and _same(hits[0], made[folder] / file), hits\nE           AssertionError: []\nE           assert ([])\n\ntests\\test_which.py:105: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_which.py::test_conformance_table[name-with-uppercase-extension-is-tried-as-given]\n1 failed, 59 passed in 1.07s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_which.py::test_conformance_table[name-with-uppercase-extension-is-tried-as-given]"
+      ]
+    },
+    {
+      "id": "m04",
+      "file": "dazzlecmd_lib/paths.py",
+      "note": "a name with a runnable extension is never tried at all (should be tried as given, once)",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "windows_candidates(name, path, pathext)\n        if winner is None:\n            assert hits == []\n        else:\n            folder, file = winner.split(\"/\")\n>           assert hits and _same(hits[0], made[folder] / file), hits\nE           AssertionError: []\nE           assert ([])\n\ntests\\test_which.py:105: AssertionError\n_______________ test_name_with_runnable_extension_is_tried_once _______________\n\ntmp_path = WindowsPath('C:/Users/<user>/AppData/Local/Temp/pytest-of-<user>/pytest-12683/test_name_with_runnable_extens0')\n\n    def test_name_with_runnable_extension_is_tried_once(tmp_path):\n        made = _layout(tmp_path, [(\"d1\", [\"tool.cmd\", \"tool.cmd.exe\"])])\n        hits = windows_candidates(\"tool.cmd\", str(made[\"d1\"]), PATHEXT)\n>       assert [os.path.basename(h).lower() for h in hits] == [\"tool.cmd\"]\nE       AssertionError: assert [] == ['tool.cmd']\nE         \nE         Right contains one more item: 'tool.cmd'\nE         Use -v to get more diff\n\ntests\\test_which.py:188: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_which.py::test_conformance_table[name-given-with-extension-is-tried-as-given]\nFAILED tests/test_which.py::test_conformance_table[name-with-uppercase-extension-is-tried-as-given]\nFAILED tests/test_which.py::test_name_with_runnable_extension_is_tried_once\n3 failed, 57 passed in 1.15s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_which.py::test_conformance_table[name-given-with-extension-is-tried-as-given]",
+        "tests/test_which.py::test_conformance_table[name-with-uppercase-extension-is-tried-as-given]",
+        "tests/test_which.py::test_name_with_runnable_extension_is_tried_once"
+      ]
+    },
+    {
+      "id": "m05",
+      "file": "dazzlecmd_lib/paths.py",
+      "note": "dropped normalization: an upper-case PATHEXT (the Windows default is '.COM;.EXE;...') matches nothing in RUNNABLE_EXTS",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "lders)\n        path = \";\".join(str(made[f]) for f, _ in folders)\n        hits = windows_candidates(name, path, pathext)\n        if winner is None:\n            assert hits == []\n        else:\n            folder, file = winner.split(\"/\")\n>           assert hits and _same(hits[0], made[folder] / file), hits\nE           AssertionError: ['C:\\\\Users\\\\<user>\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-<user>\\\\pytest-12684\\\\test_conformance_table_pathext2\\\\d1\\\\tool...\\Users\\\\<user>\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-<user>\\\\pytest-12684\\\\test_conformance_table_pathext2\\\\d1\\\\tool.cmd']\nE           assert (['C:\\\\Users\\\\<user>\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-<user>\\\\pytest-12684\\\\test_conformance_table_pathext2\\\\d1\\\\tool...\\Users\\\\<user>\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-<user>\\\\pytest-12684\\\\test_conformance_table_pathext2\\\\d1\\\\tool.cmd'] and False)\nE            +  where False = _same('C:\\\\Users\\\\<user>\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-<user>\\\\pytest-12684\\\\test_conformance_table_pathext2\\\\d1\\\\tool.exe', (WindowsPath('C:/Users/<user>/AppData/Local/Temp/pytest-of-<user>/pytest-12684/test_conformance_table_pathext2/d1') / 'tool.cmd'))\n\ntests\\test_which.py:105: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_which.py::test_conformance_table[pathext-order-within-a-folder-is-honoured]\n1 failed, 59 passed in 1.26s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_which.py::test_conformance_table[pathext-order-within-a-folder-is-honoured]"
+      ]
+    },
+    {
+      "id": "m06",
+      "file": "dazzlecmd_lib/paths.py",
+      "note": "removed fallback: PATHEXT that lists nothing runnable yields no candidates instead of the default set",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "    assert ([])\n\ntests\\test_which.py:105: AssertionError\n___ test_conformance_table[pathext-with-nothing-runnable-uses-the-default] ____\n\ntmp_path = WindowsPath('C:/Users/<user>/AppData/Local/Temp/pytest-of-<user>/pytest-12685/test_conformance_table_pathext1')\ncase_id = 'pathext-with-nothing-runnable-uses-the-default'\nfolders = [('d1', ['tool.cmd', 'tool.py'])], pathext = '.PY;.JS', name = 'tool'\nwinner = 'd1/tool.cmd'\n\n    @pytest.mark.parametrize(\"case_id,folders,pathext,name,winner\", CONFORMANCE,\n                             ids=[c[0] for c in CONFORMANCE])\n    def test_conformance_table(tmp_path, case_id, folders, pathext, name, winner):\n        made = _layout(tmp_path, folders)\n        path = \";\".join(str(made[f]) for f, _ in folders)\n        hits = windows_candidates(name, path, pathext)\n        if winner is None:\n            assert hits == []\n        else:\n            folder, file = winner.split(\"/\")\n>           assert hits and _same(hits[0], made[folder] / file), hits\nE           AssertionError: []\nE           assert ([])\n\ntests\\test_which.py:105: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_which.py::test_conformance_table[pathext-unset-uses-the-cmd-default]\nFAILED tests/test_which.py::test_conformance_table[pathext-with-nothing-runnable-uses-the-default]\n2 failed, 58 passed in 1.25s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_which.py::test_conformance_table[pathext-unset-uses-the-cmd-default]",
+        "tests/test_which.py::test_conformance_table[pathext-with-nothing-runnable-uses-the-default]"
+      ]
+    },
+    {
+      "id": "m07",
+      "file": "dazzlecmd_lib/paths.py",
+      "note": "dropped normalization: a quoted PATH entry is probed with its quotes and never matches",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "................F...........................................             [100%]\n================================== FAILURES ===================================\n______________________ test_quoted_entries_are_unquoted _______________________\n\ntmp_path = WindowsPath('C:/Users/<user>/AppData/Local/Temp/pytest-of-<user>/pytest-12686/test_quoted_entries_are_unquot0')\n\n    def test_quoted_entries_are_unquoted(tmp_path):\n        made = _layout(tmp_path, [(\"d1\", [\"tool.cmd\"])])\n        hits = windows_candidates(\"tool\", f'\"{made[\"d1\"]}\"', PATHEXT)\n>       assert hits and _same(hits[0], made[\"d1\"] / \"tool.cmd\")\nE       assert ([])\n\ntests\\test_which.py:161: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_which.py::test_quoted_entries_are_unquoted - assert ([])\n1 failed, 59 passed in 1.18s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_which.py::test_quoted_entries_are_unquoted"
+      ]
+    },
+    {
+      "id": "m08",
+      "file": "dazzlecmd_lib/paths.py",
+      "note": "boolean flip: default mode stops after the first hit in a folder; first_per_folder reports every extension hit",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "..............F.............................................             [100%]\n================================== FAILURES ===================================\n________________ test_which_all_on_path_is_one_hit_per_folder _________________\n\ntmp_path = WindowsPath('C:/Users/<user>/AppData/Local/Temp/pytest-of-<user>/pytest-12687/test_which_all_on_path_is_one_0')\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001A526FCE810>\nwindows = None\n\n    def test_which_all_on_path_is_one_hit_per_folder(tmp_path, monkeypatch, windows):\n        made = _layout(tmp_path, [(\"d1\", [\"tool.exe\", \"tool.cmd\"]), (\"d2\", [\"tool\", \"tool.cmd\"])])\n        monkeypatch.setenv(\"PATH\", f\"{made['d1']};{made['d2']}\")\n        monkeypatch.setenv(\"PATHEXT\", PATHEXT)\n        hits = which_all_on_path(\"tool\")\n>       assert [os.path.basename(h).lower() for h in hits] == [\"tool.exe\", \"tool.cmd\"]\nE       AssertionError: assert ['tool.exe', ...', 'tool.cmd'] == ['tool.exe', 'tool.cmd']\nE         \nE         Left contains one more item: 'tool.cmd'\nE         Use -v to get more diff\n\ntests\\test_which.py:146: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_which.py::test_which_all_on_path_is_one_hit_per_folder - As...\n1 failed, 59 passed in 1.14s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_which.py::test_which_all_on_path_is_one_hit_per_folder"
+      ]
+    },
+    {
+      "id": "m09",
+      "file": "dazzlecmd_lib/paths.py",
+      "note": "wrong branch: on Windows which_with_pathext falls back to shutil.which, which consults the current directory and extensionless files",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "', (WindowsPath('C:/Users/<user>/AppData/Local/Temp/pytest-of-<user>/pytest-12688/test_which_with_pathext_picks_0/d1') / 'tool.cmd'))\n\ntests\\test_which.py:138: AssertionError\n________________ test_posix_wrappers_delegate_to_shutil_which _________________\n\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001B22AECCE60>\n\n    def test_posix_wrappers_delegate_to_shutil_which(monkeypatch):\n        monkeypatch.setattr(paths, \"_IS_WINDOWS\", False)\n        calls = []\n    \n        def fake_which(name, path=None):\n            calls.append((name, path))\n            return \"/usr/local/bin/\" + name\n    \n        monkeypatch.setattr(paths.shutil, \"which\", fake_which)\n        # The POSIX branch splits PATH on the HOST's os.pathsep (correct on a\n        # POSIX host; this test also runs on Windows, where it is ';').\n        monkeypatch.setenv(\"PATH\", os.pathsep.join([\"/a\", \"/b\"]))\n>       assert which_with_pathext(\"tool\") == \"/usr/local/bin/tool\"\nE       AssertionError: assert None == '/usr/local/bin/tool'\nE        +  where None = which_with_pathext('tool')\n\ntests\\test_which.py:205: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_which.py::test_which_with_pathext_picks_the_cmd_not_the_script\nFAILED tests/test_which.py::test_posix_wrappers_delegate_to_shutil_which - As...\n2 failed, 58 passed in 1.17s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_which.py::test_posix_wrappers_delegate_to_shutil_which",
+        "tests/test_which.py::test_which_with_pathext_picks_the_cmd_not_the_script"
+      ]
+    },
+    {
+      "id": "m10",
+      "file": "dazzlecmd_lib/paths.py",
+      "note": "wrong environment key: PATHEXT is ignored and the default runnable set is always used",
+      "verdict": "survived",
+      "restore_ok": true,
+      "output_tail": ""
+    },
+    {
+      "id": "m11",
+      "file": "dazzlecmd_lib/paths.py",
+      "note": "swapped argument: which_in_dir searches the whole PATH instead of ONLY the given directory",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "est_which_in_dir_finds_the_runnable_file - asser...\nFAILED tests/test_self_setup.py::TestFindShims::test_finds_exe_on_windows_and_plain_on_posix\nFAILED tests/test_self_setup.py::TestFindShims::test_empty_when_nothing_present\nFAILED tests/test_self_setup.py::TestDiagnose::test_fixable_windows_state - A...\nFAILED tests/test_self_setup.py::TestRunSelfSetup::test_assume_yes_applies_fix\nFAILED tests/test_self_setup.py::TestRunSelfSetup::test_dry_run_never_writes\nFAILED tests/test_self_setup.py::TestRunSelfSetup::test_tty_prompt_yes_applies\nFAILED tests/test_self_setup.py::TestRunSelfSetup::test_tty_prompt_default_empty_applies\nFAILED tests/test_self_setup.py::TestRunSelfSetup::test_tty_prompt_no_declines\nFAILED tests/test_self_setup.py::TestRunSelfSetup::test_non_interactive_prints_exact_command\nFAILED tests/test_self_setup.py::TestRunSelfSetup::test_venv_advises_activation_never_offers_registry\nFAILED tests/test_self_setup.py::TestRunSelfSetup::test_posix_advises - Asser...\nFAILED tests/test_self_setup.py::TestFirstRunHint::test_hints_bootstrap_when_broken\nFAILED tests/test_self_setup.py::TestFirstRunHint::test_new_terminal_hint_when_persisted_fixed\nFAILED tests/test_self_setup.py::TestLocateScriptsDir::test_probes_alternate_scheme_dirs_for_shims\nFAILED tests/test_self_setup.py::TestLocateScriptsDir::test_primary_wins_when_it_has_shims\n16 failed, 44 passed in 1.38s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_self_setup.py::TestDiagnose::test_fixable_windows_state",
+        "tests/test_self_setup.py::TestFindShims::test_empty_when_nothing_present",
+        "tests/test_self_setup.py::TestFindShims::test_finds_exe_on_windows_and_plain_on_posix",
+        "tests/test_self_setup.py::TestFirstRunHint::test_hints_bootstrap_when_broken",
+        "tests/test_self_setup.py::TestFirstRunHint::test_new_terminal_hint_when_persisted_fixed",
+        "tests/test_self_setup.py::TestLocateScriptsDir::test_primary_wins_when_it_has_shims",
+        "tests/test_self_setup.py::TestLocateScriptsDir::test_probes_alternate_scheme_dirs_for_shims",
+        "tests/test_self_setup.py::TestRunSelfSetup::test_assume_yes_applies_fix",
+        "tests/test_self_setup.py::TestRunSelfSetup::test_dry_run_never_writes",
+        "tests/test_self_setup.py::TestRunSelfSetup::test_non_interactive_prints_exact_command",
+        "tests/test_self_setup.py::TestRunSelfSetup::test_posix_advises",
+        "tests/test_self_setup.py::TestRunSelfSetup::test_tty_prompt_default_empty_applies",
+        "tests/test_self_setup.py::TestRunSelfSetup::test_tty_prompt_no_declines",
+        "tests/test_self_setup.py::TestRunSelfSetup::test_tty_prompt_yes_applies",
+        "tests/test_self_setup.py::TestRunSelfSetup::test_venv_advises_activation_never_offers_registry",
+        "tests/test_which.py::test_which_in_dir_finds_the_runnable_file"
+      ]
+    },
+    {
+      "id": "m12",
+      "file": "dazzlecmd_lib/paths.py",
+      "note": "wrong default: which_all_on_path lists every extension hit per folder instead of one hit per PATH entry",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "..............F.............................................             [100%]\n================================== FAILURES ===================================\n________________ test_which_all_on_path_is_one_hit_per_folder _________________\n\ntmp_path = WindowsPath('C:/Users/<user>/AppData/Local/Temp/pytest-of-<user>/pytest-12691/test_which_all_on_path_is_one_0')\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001E17DADC410>\nwindows = None\n\n    def test_which_all_on_path_is_one_hit_per_folder(tmp_path, monkeypatch, windows):\n        made = _layout(tmp_path, [(\"d1\", [\"tool.exe\", \"tool.cmd\"]), (\"d2\", [\"tool\", \"tool.cmd\"])])\n        monkeypatch.setenv(\"PATH\", f\"{made['d1']};{made['d2']}\")\n        monkeypatch.setenv(\"PATHEXT\", PATHEXT)\n        hits = which_all_on_path(\"tool\")\n>       assert [os.path.basename(h).lower() for h in hits] == [\"tool.exe\", \"tool.cmd\"]\nE       AssertionError: assert ['tool.exe', ...', 'tool.cmd'] == ['tool.exe', 'tool.cmd']\nE         \nE         Left contains one more item: 'tool.cmd'\nE         Use -v to get more diff\n\ntests\\test_which.py:146: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_which.py::test_which_all_on_path_is_one_hit_per_folder - As...\n1 failed, 59 passed in 1.09s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_which.py::test_which_all_on_path_is_one_hit_per_folder"
+      ]
+    }
+  ],
+  "summary": {
+    "killed": 11,
+    "survived": 1
+  },
+  "anomalies": [],
+  "overlap": {
+    "kills": {
+      "tests/test_self_setup.py::TestDiagnose::test_fixable_windows_state": [
+        "m11"
+      ],
+      "tests/test_self_setup.py::TestFindShims::test_empty_when_nothing_present": [
+        "m11"
+      ],
+      "tests/test_self_setup.py::TestFindShims::test_finds_exe_on_windows_and_plain_on_posix": [
+        "m11"
+      ],
+      "tests/test_self_setup.py::TestFirstRunHint::test_hints_bootstrap_when_broken": [
+        "m11"
+      ],
+      "tests/test_self_setup.py::TestFirstRunHint::test_new_terminal_hint_when_persisted_fixed": [
+        "m11"
+      ],
+      "tests/test_self_setup.py::TestLocateScriptsDir::test_primary_wins_when_it_has_shims": [
+        "m11"
+      ],
+      "tests/test_self_setup.py::TestLocateScriptsDir::test_probes_alternate_scheme_dirs_for_shims": [
+        "m11"
+      ],
+      "tests/test_self_setup.py::TestRunSelfSetup::test_assume_yes_applies_fix": [
+        "m11"
+      ],
+      "tests/test_self_setup.py::TestRunSelfSetup::test_dry_run_never_writes": [
+        "m11"
+      ],
+      "tests/test_self_setup.py::TestRunSelfSetup::test_non_interactive_prints_exact_command": [
+        "m11"
+      ],
+      "tests/test_self_setup.py::TestRunSelfSetup::test_posix_advises": [
+        "m11"
+      ],
+      "tests/test_self_setup.py::TestRunSelfSetup::test_tty_prompt_default_empty_applies": [
+        "m11"
+      ],
+      "tests/test_self_setup.py::TestRunSelfSetup::test_tty_prompt_no_declines": [
+        "m11"
+      ],
+      "tests/test_self_setup.py::TestRunSelfSetup::test_tty_prompt_yes_applies": [
+        "m11"
+      ],
+      "tests/test_self_setup.py::TestRunSelfSetup::test_venv_advises_activation_never_offers_registry": [
+        "m11"
+      ],
+      "tests/test_which.py::test_conformance_table[name-given-with-extension-is-tried-as-given]": [
+        "m04"
+      ],
+      "tests/test_which.py::test_conformance_table[name-with-uppercase-extension-is-tried-as-given]": [
+        "m03",
+        "m04"
+      ],
+      "tests/test_which.py::test_conformance_table[pathext-order-within-a-folder-is-honoured]": [
+        "m05"
+      ],
+      "tests/test_which.py::test_conformance_table[pathext-unset-uses-the-cmd-default]": [
+        "m06"
+      ],
+      "tests/test_which.py::test_conformance_table[pathext-with-nothing-runnable-uses-the-default]": [
+        "m06"
+      ],
+      "tests/test_which.py::test_name_with_runnable_extension_is_tried_once": [
+        "m04"
+      ],
+      "tests/test_which.py::test_posix_wrappers_delegate_to_shutil_which": [
+        "m09"
+      ],
+      "tests/test_which.py::test_quoted_entries_are_unquoted": [
+        "m07"
+      ],
+      "tests/test_which.py::test_runnable_set_is_cmd_exe_default_order": [
+        "m01"
+      ],
+      "tests/test_which.py::test_unknown_percent_var_is_left_as_written": [
+        "m02"
+      ],
+      "tests/test_which.py::test_which_all_on_path_is_one_hit_per_folder": [
+        "m08",
+        "m12"
+      ],
+      "tests/test_which.py::test_which_in_dir_finds_the_runnable_file": [
+        "m11"
+      ],
+      "tests/test_which.py::test_which_with_pathext_picks_the_cmd_not_the_script": [
+        "m09"
+      ]
+    },
+    "identical": [
+      [
+        "tests/test_self_setup.py::TestDiagnose::test_fixable_windows_state",
+        "tests/test_self_setup.py::TestFindShims::test_empty_when_nothing_present",
+        "tests/test_self_setup.py::TestFindShims::test_finds_exe_on_windows_and_plain_on_posix",
+        "tests/test_self_setup.py::TestFirstRunHint::test_hints_bootstrap_when_broken",
+        "tests/test_self_setup.py::TestFirstRunHint::test_new_terminal_hint_when_persisted_fixed",
+        "tests/test_self_setup.py::TestLocateScriptsDir::test_primary_wins_when_it_has_shims",
+        "tests/test_self_setup.py::TestLocateScriptsDir::test_probes_alternate_scheme_dirs_for_shims",
+        "tests/test_self_setup.py::TestRunSelfSetup::test_assume_yes_applies_fix",
+        "tests/test_self_setup.py::TestRunSelfSetup::test_dry_run_never_writes",
+        "tests/test_self_setup.py::TestRunSelfSetup::test_non_interactive_prints_exact_command",
+        "tests/test_self_setup.py::TestRunSelfSetup::test_posix_advises",
+        "tests/test_self_setup.py::TestRunSelfSetup::test_tty_prompt_default_empty_applies",
+        "tests/test_self_setup.py::TestRunSelfSetup::test_tty_prompt_no_declines",
+        "tests/test_self_setup.py::TestRunSelfSetup::test_tty_prompt_yes_applies",
+        "tests/test_self_setup.py::TestRunSelfSetup::test_venv_advises_activation_never_offers_registry",
+        "tests/test_which.py::test_which_in_dir_finds_the_runnable_file"
+      ],
+      [
+        "tests/test_which.py::test_conformance_table[name-given-with-extension-is-tried-as-given]",
+        "tests/test_which.py::test_name_with_runnable_extension_is_tried_once"
+      ],
+      [
+        "tests/test_which.py::test_conformance_table[pathext-unset-uses-the-cmd-default]",
+        "tests/test_which.py::test_conformance_table[pathext-with-nothing-runnable-uses-the-default]"
+      ],
+      [
+        "tests/test_which.py::test_posix_wrappers_delegate_to_shutil_which",
+        "tests/test_which.py::test_which_with_pathext_picks_the_cmd_not_the_script"
+      ]
+    ],
+    "contained": [
+      [
+        "tests/test_which.py::test_conformance_table[name-given-with-extension-is-tried-as-given]",
+        "tests/test_which.py::test_conformance_table[name-with-uppercase-extension-is-tried-as-given]"
+      ],
+      [
+        "tests/test_which.py::test_name_with_runnable_extension_is_tried_once",
+        "tests/test_which.py::test_conformance_table[name-with-uppercase-extension-is-tried-as-given]"
+      ]
+    ],
+    "killed_without_names": []
+  }
+}

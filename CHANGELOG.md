@@ -8,6 +8,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 This repository is the standalone home of the library, extracted from the dazzlecmd monorepo at v0.8.55 (2026-06-24). Commit history through 0.8.55 lives in the [dazzlecmd](https://github.com/DazzleTools/dazzlecmd) repository's git log (under `packages/dazzlecmd-lib/`); this CHANGELOG and all subsequent history continue here.
 
+## [0.10.34-alpha] - 2026-10-27
+
+An interim release, cut partway through the FQCN and property-surface unification so that a downstream project can depend on a published build. The unification is not finished; see "Not yet done" below.
+
+### Fixed
+- **Windows executable lookup returns the file Windows will actually run.** `paths.which_with_pathext`, `which_in_dir` and `which_all_on_path` now walk PATH x PATHEXT the way `CreateProcess` and cmd.exe resolve a name: folders in PATH order, extensions in PATHEXT order restricted to `.com`/`.exe`/`.bat`/`.cmd`, never the bare name (unless it already carries a runnable extension), never the current directory; PATH entries are unquoted, `%VAR%`-expanded and deduplicated. Before this, on Python 3.12.0 (CPython gh-109590) `shutil.which` could return a POSIX script sitting beside a `.cmd` shim, which then failed with WinError 193. POSIX lookup is unchanged.
+
+### Changed
+- On Windows, a name that resolved only from the current directory, or only as an extensionless file on PATH, no longer resolves. `CreateProcess` would not have run it either.
+
+### Added
+- `paths.RUNNABLE_EXTS` and `paths.windows_candidates(name, path_value, pathext=None, *, first_per_folder=False, env=None)`: every file `CreateProcess` could run for a name, in cmd.exe's order. Pure: it never reads PATH itself and never the current directory.
+- `tests/test_which.py`, the conformance table for these rules, and `tests/mutation/`, a two-round mutation sweep showing the tests catch deliberately broken versions of the lookup code.
+
+### Not yet done (the unification is still in progress)
+- The anonymous-rank address grammar (`level:(-3.1)`) and countable names for newly inserted rungs.
+- Folding the visibility axis into the verb axes.
+- The node-ID registry and the full-dump read.
+- Generated help and command surfaces backed by a single alias registry, and the reserved and well-known property registry (DazzleTools/dazzlecmd#101).
+- Placing the remaining 33 addressable names into the FQCN tree.
+- `core.links` still duplicates dazzle-filekit's junction detection (#5).
+
 ## [0.10.33-alpha] - 2026-07-19
 
 ### Changed

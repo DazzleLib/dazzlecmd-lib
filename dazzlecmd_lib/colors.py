@@ -27,7 +27,7 @@ Windows-only optional extra. Adding colorama to required deps is rejected
 by the lib's slim-default constraint.
 
 Public API:
-    RESET, BOLD, DIM, RED, GREEN, YELLOW, CYAN, BRIGHT_RED  -- ANSI constants
+    RESET, BOLD, DIM, RED, GREEN, YELLOW, BLUE, CYAN, BRIGHT_RED  -- ANSI constants
     should_use_color(stream=None) -> bool                    -- TTY+env probe
     colorize(text: str, *codes: str) -> str                  -- wrap helper
     colorize_for(stream, text, *codes) -> str                -- TTY-gated wrap
@@ -48,6 +48,7 @@ DIM = "\033[2m"
 RED = "\033[31m"
 GREEN = "\033[32m"
 YELLOW = "\033[33m"
+BLUE = "\033[34m"
 CYAN = "\033[36m"
 BRIGHT_RED = "\033[91m"
 

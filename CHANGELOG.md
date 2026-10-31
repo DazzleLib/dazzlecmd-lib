@@ -8,6 +8,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 This repository is the standalone home of the library, extracted from the dazzlecmd monorepo at v0.8.55 (2026-06-24). Commit history through 0.8.55 lives in the [dazzlecmd](https://github.com/DazzleTools/dazzlecmd) repository's git log (under `packages/dazzlecmd-lib/`); this CHANGELOG and all subsequent history continue here.
 
+## [0.10.35-alpha] - 2026-10-31
+
+### Added
+- **`colors.BLUE`** (`\033[34m`), for informational lines. A downstream tool that vendors `colors.py` (ck3-save-updater) needed a colour for info distinct from cyan paths; adding it here keeps the vendored copy and the library from drifting apart. Still the 8-colour palette; nothing else changes.
+
 ## [0.10.34-alpha] - 2026-10-27
 
 An interim release, cut partway through the FQCN and property-surface unification so that a downstream project can depend on a published build. The unification is not finished; see "Not yet done" below.

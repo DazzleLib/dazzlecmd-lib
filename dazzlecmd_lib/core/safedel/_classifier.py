@@ -76,8 +76,29 @@ class Classification:
     exists: bool = True
 
 
+def _would_expand(path: str) -> bool:
+    """True if user-input normalization would rewrite this path's characters.
+
+    That happens for a leading ``~``, for ``%VAR%`` / ``$VAR`` references to
+    variables that are set, and for leading/trailing whitespace (stripped).
+    """
+    if path != path.strip():
+        return True
+    return os.path.expandvars(os.path.expanduser(path)) != path
+
+
 def _normalize_path_no_resolve(path: str) -> str:
-    """Normalize path format without resolving symlinks/junctions."""
+    """Normalize path format without resolving symlinks/junctions.
+
+    Paths are taken literally. The shell has already expanded anything the
+    user meant to expand, so a ``~`` or ``%VAR%`` that reaches safedel names
+    a real file or folder. filekit's normalizer expands both, which made
+    ``classify("~")`` resolve to the home folder. When expansion would change
+    the argument, it is made absolute lexically instead; otherwise filekit's
+    normalization (MSYS/WSL drive forms, separators) still applies.
+    """
+    if _would_expand(path):
+        return os.path.normpath(os.path.join(os.getcwd(), path))
     # filekit 0.3.0 removed normalize_path_no_resolve (clean break); the
     # canonical normalize_cross_platform_path defaults to resolve=False, which
     # is the same link-safe normalization.

@@ -88,6 +88,10 @@ dazzlecmd_lib = [
     # skip dotfiles, so they need explicit patterns to ship in the wheel.
     "templates/**/.*.tmpl",
     "templates/**/**/.*.tmpl",
+    # Dot-named DIRECTORIES (the ci component's .github/workflows/): `**`
+    # does not descend into them either, so name the segment explicitly.
+    # tests/test_package_data.py checks every template file is matched.
+    "templates/**/.github/**/*",
 ]
 
 [tool.pytest.ini_options]

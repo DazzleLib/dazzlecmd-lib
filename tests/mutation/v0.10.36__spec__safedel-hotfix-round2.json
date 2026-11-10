@@ -1,0 +1,86 @@
+{
+  "test_command": [
+    "C:/Python312/python.exe",
+    "-m",
+    "pytest",
+    "-q",
+    "-p",
+    "no:cacheprovider",
+    "-W",
+    "ignore::DeprecationWarning",
+    "tests/test_core_safedel_hotfix.py",
+    "tests/test_core_safedel.py"
+  ],
+  "mutations": [
+    {
+      "id": "R2-01",
+      "file": "dazzlecmd_lib/core/safedel/_platform.py",
+      "original": "        if classification.is_dir:",
+      "mutated": "        if not classification.is_dir:",
+      "note": "Inverted dir/file branch in cross-device copy."
+    },
+    {
+      "id": "R2-02",
+      "file": "dazzlecmd_lib/core/safedel/_platform.py",
+      "original": "    if os.path.lexists(dest_path):\n        return StagingResult(",
+      "mutated": "    if os.path.exists(dest_path):\n        return StagingResult(",
+      "note": "lexists->exists in the never-overwrite guard (dangling link at dest)."
+    },
+    {
+      "id": "R2-03",
+      "file": "dazzlecmd_lib/core/safedel/_platform.py",
+      "original": "            success=True,\n            source_path=source_path,\n            dest_path=dest_path,\n            method=\"copy\",",
+      "mutated": "            success=False,\n            source_path=source_path,\n            dest_path=dest_path,\n            method=\"copy\",",
+      "note": "Successful copy reported as failure."
+    },
+    {
+      "id": "R2-04",
+      "file": "dazzlecmd_lib/core/safedel/_platform.py",
+      "original": "            source_path=source_path,\n            dest_path=dest_path,\n            method=\"rename\",\n        )",
+      "mutated": "            source_path=dest_path,\n            dest_path=source_path,\n            method=\"rename\",\n        )",
+      "note": "Swapped source/dest in the rename result."
+    },
+    {
+      "id": "R2-05",
+      "file": "dazzlecmd_lib/core/safedel/_platform.py",
+      "original": "    if not os.path.lexists(dest_path):\n        return None",
+      "mutated": "    if os.path.lexists(dest_path):\n        return None",
+      "note": "Flipped early return in cleanup."
+    },
+    {
+      "id": "R2-06",
+      "file": "dazzlecmd_lib/core/safedel/_platform.py",
+      "original": "        if os.path.isdir(dest_path) and not os.path.islink(dest_path):",
+      "mutated": "        if os.path.isfile(dest_path) and not os.path.islink(dest_path):",
+      "note": "isdir->isfile in cleanup."
+    },
+    {
+      "id": "R2-07",
+      "file": "dazzlecmd_lib/core/safedel/_classifier.py",
+      "original": "    if path != path.strip():\n        return True",
+      "mutated": "    if path != path.strip():\n        return False",
+      "note": "Whitespace no longer counts as a rewrite."
+    },
+    {
+      "id": "R2-08",
+      "file": "dazzlecmd_lib/core/safedel/_classifier.py",
+      "original": "    return os.path.expandvars(os.path.expanduser(path)) != path",
+      "mutated": "    return os.path.expanduser(path) != path",
+      "note": "Dropped expandvars."
+    },
+    {
+      "id": "R2-09",
+      "file": "dazzlecmd_lib/core/safedel/_classifier.py",
+      "original": "    return os.path.expandvars(os.path.expanduser(path)) != path",
+      "mutated": "    return os.path.expandvars(os.path.expanduser(path)) == path",
+      "note": "Comparison flip in _would_expand."
+    },
+    {
+      "id": "R2-10",
+      "file": "dazzlecmd_lib/core/safedel/_classifier.py",
+      "original": "        return os.path.normpath(os.path.join(os.getcwd(), path))",
+      "mutated": "        return os.path.join(os.getcwd(), path)",
+      "note": "Dropped normpath on the literal branch."
+    }
+  ]
+}

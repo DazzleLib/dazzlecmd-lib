@@ -1,0 +1,100 @@
+{
+  "harness": {
+    "name": "mutation_sweep.py",
+    "version": "0.2.0"
+  },
+  "environment": {
+    "python": "3.12.0",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "root": ".",
+    "test_command": [
+      "C:/Python312/python.exe",
+      "-m",
+      "pytest",
+      "-q",
+      "-p",
+      "no:cacheprovider",
+      "-W",
+      "ignore::DeprecationWarning",
+      "tests/test_core_safedel_hotfix.py",
+      "tests/test_core_safedel.py"
+    ],
+    "timestamp": "2026-11-09T17:23:07-05:00"
+  },
+  "results": [
+    {
+      "id": "M01",
+      "file": "dazzlecmd_lib/core/safedel/_platform.py",
+      "note": "Collision guard narrowed to files only.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "sal must cover directories, not just files.\"\"\"\n        first = tmp_path / \"src\" / \"a\" / \"d\"\n        second = tmp_path / \"src\" / \"b\" / \"d\"\n        first.mkdir(parents=True)                    # an empty folder is an item too\n        _write(second / \"inner.txt\", b\"second item\")\n        dest_dir = tmp_path / \"content\"\n    \n        def posix_rename(src, dst):\n            if os.path.isdir(src) and os.path.isdir(dst) and not os.listdir(dst):\n                os.rmdir(dst)\n            os.replace(src, dst)\n    \n        monkeypatch.setattr(_platform.os, \"rename\", posix_rename)\n    \n        sr1 = sd.stage_to_trash(str(first), str(dest_dir), _classified(first))\n        sr2 = sd.stage_to_trash(str(second), str(dest_dir), _classified(second))\n    \n        assert sr1.success\n>       assert not sr2.success\nE       AssertionError: assert not True\nE        +  where True = StagingResult(success=True, source_path='C:\\\\Users\\\\<user>\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-<user>\\\\pytest-16305\\\\te...ytest-of-<user>\\\\pytest-16305\\\\test_posix_style_dir_rename_ca0\\\\content\\\\d', method='rename', error=None, warnings=[]).success\n\ntests\\test_core_safedel_hotfix.py:170: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_core_safedel_hotfix.py::test_posix_style_dir_rename_cannot_replace_a_staged_empty_dir\n1 failed, 23 passed in 1.17s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_core_safedel_hotfix.py::test_posix_style_dir_rename_cannot_replace_a_staged_empty_dir"
+      ]
+    },
+    {
+      "id": "M03",
+      "file": "dazzlecmd_lib/core/safedel/_platform.py",
+      "note": "EEXIST falls back to copy (reintroduces the overwrite).",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "k must not run for a non-EXDEV error\")\n    \n        monkeypatch.setattr(_platform.os, \"rename\", fail_rename)\n        monkeypatch.setattr(_platform.shutil, \"copy2\", no_copy)\n    \n>       sr = sd.stage_to_trash(str(src), str(dest_dir), _classified(src))\n\ntests\\test_core_safedel_hotfix.py:193: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\ndazzlecmd_lib\\core\\safedel\\_platform.py:148: in stage_to_trash\n    return _stage_regular(source_path, dest_path, classification)\ndazzlecmd_lib\\core\\safedel\\_platform.py:258: in _stage_regular\n    shutil.copy2(source_path, dest_path)\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\n\na = ('C:\\\\Users\\\\<user>\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-<user>\\\\pytest-16306\\\\test_non_exdev_rename_failure_1\\\\src\\\\x.t...sers\\\\<user>\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-<user>\\\\pytest-16306\\\\test_non_exdev_rename_failure_1\\\\content\\\\x.txt')\nk = {}\n\n    def no_copy(*a, **k):\n>       raise AssertionError(\"copy fallback must not run for a non-EXDEV error\")\nE       AssertionError: copy fallback must not run for a non-EXDEV error\n\ntests\\test_core_safedel_hotfix.py:188: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_core_safedel_hotfix.py::test_non_exdev_rename_failure_refuses_without_copying[17]\n1 failed, 23 passed in 1.81s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_core_safedel_hotfix.py::test_non_exdev_rename_failure_refuses_without_copying[17]"
+      ]
+    },
+    {
+      "id": "M07",
+      "file": "dazzlecmd_lib/core/safedel/_platform.py",
+      "note": "Cleanup warning truthiness flip.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "dir.mkdir()\n    \n        def cross_device(a, b):\n            raise OSError(errno.EXDEV, \"cross-device link\")\n    \n        def half_copy(source, dest):\n            os.makedirs(dest)\n            raise OSError(errno.ENOSPC, \"disk full\")\n    \n        def stuck_rmtree(path, *a, **k):\n            raise PermissionError(errno.EACCES, \"in use\", path)\n    \n        import dazzle_filekit.operations as fk_ops\n        monkeypatch.setattr(_platform.os, \"rename\", cross_device)\n        monkeypatch.setattr(fk_ops, \"copy_tree_preserving_links\", half_copy)\n        monkeypatch.setattr(_platform.shutil, \"rmtree\", stuck_rmtree)\n    \n        sr = sd.stage_to_trash(str(src), str(dest_dir), _classified(src))\n    \n        assert not sr.success\n>       assert any(\"Partial copy left in trash\" in w and str(dest_dir / \"d\") in w\n                   for w in sr.warnings), sr.warnings\nE       AssertionError: []\nE       assert False\nE        +  where False = any(<generator object test_partial_copy_cleanup_failure_is_reported.<locals>.<genexpr> at 0x000001CA8AE367A0>)\n\ntests\\test_core_safedel_hotfix.py:271: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_core_safedel_hotfix.py::test_partial_cross_device_copy_is_removed\nFAILED tests/test_core_safedel_hotfix.py::test_partial_copy_cleanup_failure_is_reported\n2 failed, 22 passed in 1.15s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_core_safedel_hotfix.py::test_partial_copy_cleanup_failure_is_reported",
+        "tests/test_core_safedel_hotfix.py::test_partial_cross_device_copy_is_removed"
+      ]
+    },
+    {
+      "id": "M10",
+      "file": "dazzlecmd_lib/core/safedel/_platform.py",
+      "note": "Swallowed cleanup failure.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": " _write(src / \"one.txt\", b\"1\")\n        dest_dir = tmp_path / \"content\"\n        dest_dir.mkdir()\n    \n        def cross_device(a, b):\n            raise OSError(errno.EXDEV, \"cross-device link\")\n    \n        def half_copy(source, dest):\n            os.makedirs(dest)\n            raise OSError(errno.ENOSPC, \"disk full\")\n    \n        def stuck_rmtree(path, *a, **k):\n            raise PermissionError(errno.EACCES, \"in use\", path)\n    \n        import dazzle_filekit.operations as fk_ops\n        monkeypatch.setattr(_platform.os, \"rename\", cross_device)\n        monkeypatch.setattr(fk_ops, \"copy_tree_preserving_links\", half_copy)\n        monkeypatch.setattr(_platform.shutil, \"rmtree\", stuck_rmtree)\n    \n        sr = sd.stage_to_trash(str(src), str(dest_dir), _classified(src))\n    \n        assert not sr.success\n>       assert any(\"Partial copy left in trash\" in w and str(dest_dir / \"d\") in w\n                   for w in sr.warnings), sr.warnings\nE       AssertionError: []\nE       assert False\nE        +  where False = any(<generator object test_partial_copy_cleanup_failure_is_reported.<locals>.<genexpr> at 0x0000027B91509380>)\n\ntests\\test_core_safedel_hotfix.py:271: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_core_safedel_hotfix.py::test_partial_copy_cleanup_failure_is_reported\n1 failed, 23 passed in 1.11s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_core_safedel_hotfix.py::test_partial_copy_cleanup_failure_is_reported"
+      ]
+    }
+  ],
+  "summary": {
+    "killed": 4
+  },
+  "anomalies": [],
+  "overlap": {
+    "kills": {
+      "tests/test_core_safedel_hotfix.py::test_non_exdev_rename_failure_refuses_without_copying[17]": [
+        "M03"
+      ],
+      "tests/test_core_safedel_hotfix.py::test_partial_copy_cleanup_failure_is_reported": [
+        "M07",
+        "M10"
+      ],
+      "tests/test_core_safedel_hotfix.py::test_partial_cross_device_copy_is_removed": [
+        "M07"
+      ],
+      "tests/test_core_safedel_hotfix.py::test_posix_style_dir_rename_cannot_replace_a_staged_empty_dir": [
+        "M01"
+      ]
+    },
+    "identical": [],
+    "contained": [
+      [
+        "tests/test_core_safedel_hotfix.py::test_partial_cross_device_copy_is_removed",
+        "tests/test_core_safedel_hotfix.py::test_partial_copy_cleanup_failure_is_reported"
+      ]
+    ],
+    "killed_without_names": []
+  }
+}

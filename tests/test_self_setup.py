@@ -27,6 +27,7 @@ from dazzlecmd_lib.self_setup import (
     render_report,
     split_path_value,
 )
+from _platform_stub import pretend_os_name
 
 
 def _make_shim(dirpath, name):
@@ -117,7 +118,7 @@ def fake_registry(monkeypatch, tmp_path):
     monkeypatch.setattr(self_setup, "_backup_dir",
                         lambda: str(tmp_path / ".dazzlecmd"))
     # The Windows-only guard: pretend we are on Windows for the flow.
-    monkeypatch.setattr(self_setup.os, "name", "nt")
+    pretend_os_name(monkeypatch, "nt", self_setup)
     return state
 
 
@@ -178,7 +179,7 @@ class TestFixWindows:
         assert fake_registry["writes"][0][0] == SCRIPTS
 
     def test_posix_guard(self, monkeypatch):
-        monkeypatch.setattr(self_setup.os, "name", "posix")
+        pretend_os_name(monkeypatch, "posix", self_setup)
         result = fix_windows(SCRIPTS)
         assert not result.changed
         assert "advise_posix" in result.message
@@ -239,7 +240,7 @@ class TestDiagnose:
                            else r"C:\Windows")
         monkeypatch.setattr(self_setup, "persisted_user_path",
                             lambda: r"C:\other" if os.name == "nt" else None)
-        monkeypatch.setattr(self_setup.os, "name", "nt")
+        pretend_os_name(monkeypatch, "nt", self_setup)
         report = self_setup.diagnose(["agg"])
         assert report.shims_present == ["agg"]
         assert not report.on_effective_path
@@ -270,6 +271,15 @@ class _FakeNoTty:
 
 
 class TestRunSelfSetup:
+    @pytest.fixture(autouse=True)
+    def _not_a_venv(self, monkeypatch):
+        # These tests describe a user/system install. Pin the scheme so the
+        # result does not depend on whether pytest itself runs inside a venv
+        # (detect_scheme would report "venv" and advise activation instead).
+        # The venv test below overrides this with its own patch.
+        monkeypatch.setattr(self_setup, "detect_scheme",
+                            lambda loc=None: "user")
+
     def _rig_broken_windows(self, tmp_path, monkeypatch, fake_registry):
         """Shims exist; neither effective nor persisted PATH has the dir."""
         monkeypatch.setattr(self_setup, "scripts_dir_for",
@@ -386,8 +396,10 @@ class TestRunSelfSetup:
         monkeypatch.setenv("PATH", "/usr/bin")
         monkeypatch.setenv("SHELL", "/bin/bash")
         monkeypatch.setattr(self_setup, "persisted_user_path", lambda: None)
-        monkeypatch.setattr(self_setup.os, "name", "posix")
         from dazzlecmd_lib import shell_fix
+        # run_self_setup calls into shell_fix, which picks .sh vs .cmd from
+        # os.name too -- both modules must see POSIX.
+        pretend_os_name(monkeypatch, "posix", self_setup, shell_fix)
         monkeypatch.setattr(shell_fix, "_temp_dir", lambda: str(tmp_path))
         rc = self_setup.run_self_setup(["agg"])
         assert rc == 1

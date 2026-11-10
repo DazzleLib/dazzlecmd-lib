@@ -202,7 +202,28 @@ def _stage_link(
 def _stage_regular(
     source_path: str, dest_path: str, classification: Classification
 ) -> StagingResult:
-    """Stage a regular file or directory via rename or copy."""
+    """Stage a regular file or directory via rename or copy.
+
+    Never overwrites. If the destination name is already taken in this batch
+    (two items with the same name), the item is refused and left in place:
+    on Windows a rename onto a taken name fails and the old copy fallback then
+    replaced the earlier item; on POSIX os.rename replaces it silently.
+    Falls back to copying only when the rename failed because source and
+    trash are on different devices (EXDEV); any other rename failure leaves
+    the item in place rather than copying it.
+    """
+    if os.path.lexists(dest_path):
+        return StagingResult(
+            success=False,
+            source_path=source_path,
+            dest_path=dest_path,
+            method="refused",
+            error=(
+                f"an item named '{os.path.basename(dest_path)}' is already "
+                f"staged in this batch; left in place so it is not overwritten"
+            ),
+        )
+
     # Try atomic rename first
     try:
         os.rename(source_path, dest_path)
@@ -214,9 +235,13 @@ def _stage_regular(
         )
     except OSError as e:
         if e.errno != errno.EXDEV:
-            # Not a cross-device error -- something else went wrong
-            # Still try copy as fallback
-            pass
+            return StagingResult(
+                success=False,
+                source_path=source_path,
+                dest_path=dest_path,
+                method="rename",
+                error=f"rename into trash failed ({e}); left in place",
+            )
 
     # Cross-device: must copy then delete
     warnings = []
@@ -245,14 +270,38 @@ def _stage_regular(
             warnings=warnings,
         )
     except OSError as e:
+        # The original is untouched (deletion only follows a successful copy).
+        # Remove whatever part of the copy landed, so the trash never holds a
+        # partial tree that recovery could mistake for the item.
+        leftover = _discard_partial_copy(dest_path)
+        if leftover:
+            warnings.append(leftover)
         return StagingResult(
             success=False,
             source_path=source_path,
             dest_path=dest_path,
             method="copy",
-            error=f"Failed to stage: {e}",
+            error=f"Failed to stage: {e}; left in place",
             warnings=warnings,
         )
+
+
+def _discard_partial_copy(dest_path: str) -> Optional[str]:
+    """Remove a partially copied item from the trash batch.
+
+    dest_path is always inside the batch's own content/ folder, created by
+    this run. Returns a warning string if something could not be removed.
+    """
+    if not os.path.lexists(dest_path):
+        return None
+    try:
+        if os.path.isdir(dest_path) and not os.path.islink(dest_path):
+            shutil.rmtree(dest_path)
+        else:
+            os.unlink(dest_path)
+    except OSError as e:
+        return f"Partial copy left in trash at {dest_path}: {e}"
+    return None
 
 
 def safe_delete(path: str, classification: Classification) -> DeleteResult:

@@ -1,0 +1,114 @@
+{
+  "test_command": [
+    "C:/Python312/python.exe",
+    "-m",
+    "pytest",
+    "-q",
+    "-p",
+    "no:cacheprovider",
+    "-W",
+    "ignore::DeprecationWarning",
+    "tests/test_core_safedel_hotfix.py",
+    "tests/test_core_safedel.py"
+  ],
+  "mutations": [
+    {
+      "id": "M01",
+      "file": "dazzlecmd_lib/core/safedel/_platform.py",
+      "original": "    if os.path.lexists(dest_path):\n        return StagingResult(",
+      "mutated": "    if os.path.lexists(dest_path) and os.path.isfile(dest_path):\n        return StagingResult(",
+      "note": "Collision guard narrowed to files only."
+    },
+    {
+      "id": "M02",
+      "file": "dazzlecmd_lib/core/safedel/_platform.py",
+      "original": "        if e.errno != errno.EXDEV:",
+      "mutated": "        if e.errno == errno.EXDEV:",
+      "note": "Comparison flip: EXDEV refuses, others copy."
+    },
+    {
+      "id": "M03",
+      "file": "dazzlecmd_lib/core/safedel/_platform.py",
+      "original": "        if e.errno != errno.EXDEV:",
+      "mutated": "        if e.errno not in (errno.EXDEV, errno.EEXIST):",
+      "note": "EEXIST falls back to copy (reintroduces the overwrite)."
+    },
+    {
+      "id": "M04",
+      "file": "dazzlecmd_lib/core/safedel/_platform.py",
+      "original": "                success=False,\n                source_path=source_path,\n                dest_path=dest_path,\n                method=\"rename\",",
+      "mutated": "                success=True,\n                source_path=source_path,\n                dest_path=dest_path,\n                method=\"rename\",",
+      "note": "Non-EXDEV rename failure reported as success."
+    },
+    {
+      "id": "M05",
+      "file": "dazzlecmd_lib/core/safedel/_platform.py",
+      "original": "            shutil.copy2(source_path, dest_path)",
+      "mutated": "            shutil.copy2(dest_path, source_path)",
+      "note": "Swapped copy arguments."
+    },
+    {
+      "id": "M06",
+      "file": "dazzlecmd_lib/core/safedel/_platform.py",
+      "original": "        leftover = _discard_partial_copy(dest_path)",
+      "mutated": "        leftover = None",
+      "note": "Partial-copy cleanup dropped."
+    },
+    {
+      "id": "M07",
+      "file": "dazzlecmd_lib/core/safedel/_platform.py",
+      "original": "        if leftover:\n            warnings.append(leftover)",
+      "mutated": "        if not leftover:\n            warnings.append(leftover)",
+      "note": "Cleanup warning truthiness flip."
+    },
+    {
+      "id": "M08",
+      "file": "dazzlecmd_lib/core/safedel/_platform.py",
+      "original": "    if not os.path.lexists(dest_path):\n        return None",
+      "mutated": "    if not os.path.exists(dest_path):\n        return None",
+      "note": "lexists -> exists in cleanup."
+    },
+    {
+      "id": "M09",
+      "file": "dazzlecmd_lib/core/safedel/_platform.py",
+      "original": "        if os.path.isdir(dest_path) and not os.path.islink(dest_path):",
+      "mutated": "        if os.path.isdir(dest_path):",
+      "note": "Dropped link check in cleanup."
+    },
+    {
+      "id": "M10",
+      "file": "dazzlecmd_lib/core/safedel/_platform.py",
+      "original": "        return f\"Partial copy left in trash at {dest_path}: {e}\"",
+      "mutated": "        return None",
+      "note": "Swallowed cleanup failure."
+    },
+    {
+      "id": "M11",
+      "file": "dazzlecmd_lib/core/safedel/_classifier.py",
+      "original": "    if path != path.strip():",
+      "mutated": "    if path != path.rstrip():",
+      "note": "Leading whitespace no longer counts."
+    },
+    {
+      "id": "M12",
+      "file": "dazzlecmd_lib/core/safedel/_classifier.py",
+      "original": "    return os.path.expandvars(os.path.expanduser(path)) != path",
+      "mutated": "    return os.path.expandvars(path) != path",
+      "note": "Dropped expanduser: literal ~ undetected."
+    },
+    {
+      "id": "M13",
+      "file": "dazzlecmd_lib/core/safedel/_classifier.py",
+      "original": "    if _would_expand(path):\n        return os.path.normpath(os.path.join(os.getcwd(), path))",
+      "mutated": "    if not _would_expand(path):\n        return os.path.normpath(os.path.join(os.getcwd(), path))",
+      "note": "Boolean flip on the literal branch."
+    },
+    {
+      "id": "M14",
+      "file": "dazzlecmd_lib/core/safedel/_classifier.py",
+      "original": "        return os.path.normpath(os.path.join(os.getcwd(), path))",
+      "mutated": "        return os.path.abspath(os.path.expanduser(path))",
+      "note": "abspath re-expands ~."
+    }
+  ]
+}

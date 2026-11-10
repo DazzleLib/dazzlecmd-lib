@@ -8,6 +8,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 This repository is the standalone home of the library, extracted from the dazzlecmd monorepo at v0.8.55 (2026-06-24). Commit history through 0.8.55 lives in the [dazzlecmd](https://github.com/DazzleTools/dazzlecmd) repository's git log (under `packages/dazzlecmd-lib/`); this CHANGELOG and all subsequent history continue here.
 
+## [0.10.36-alpha] - 2026-11-10
+
+An interim release that stops two safedel data-safety bugs now, ahead of the full fix. The collision-free trash layout is not finished; see "Not yet done" below (#7).
+
+### Fixed
+- **safedel no longer overwrites one item with another of the same name.** Every item in a delete batch was staged at `content/<name>`, so two items sharing a name (for example `session-states\<id>.json` and `context-window\<id>.json`) landed on one path. On Windows a rename onto the taken name failed and the fallback then copied over the earlier item; on POSIX `os.rename` replaced it silently. The batch still reported success and recovery restored the wrong bytes. Staging now refuses a destination that is already taken: the second item is left in place with the error "an item named '...' is already staged in this batch; left in place so it is not overwritten", and the batch reports failure. The rename-to-copy fallback now runs only for a cross-device move (`EXDEV`); any other rename failure leaves the item in place instead of copying it. A copy that fails partway is removed from the trash instead of left behind. (#7)
+- **safedel takes paths literally.** `classify()` passed its argument through filekit's user-input normalizer, which expands `~` and environment variables, so `classify("~")`, `"%USERPROFILE%"` and `"$HOME"` resolved to the home folder -- a folder literally named `~` could not be targeted safely. A path that expansion would change (or that has leading/trailing whitespace) is now made absolute lexically instead; other paths keep filekit's normalization. (#7)
+- **The wheel now ships templates that live under dot-named folders.** setuptools' `**` glob does not descend into dot-directories, so the `ci` scaffold component (`templates/__with__/ci/.github/workflows/`) was left out of every published wheel and `dz new aggregator <name> --with ci` reported "template dir missing". `tests/test_package_data.py` now checks that every file under `templates/` is matched by the package-data patterns.
+
+### Tests
+- `tests/test_core_safedel_hotfix.py` (21 tests) and a two-round mutation sweep in `tests/mutation/` (22 of 24 mutants killed, 2 recorded as equivalent in `equivalents.md`).
+- Tests that pretended to be on another OS used to rewrite the global `os.name`, which makes `pathlib` build `WindowsPath` on Linux (or `PosixPath` on Windows) and crashed pytest's failure reporting there. They now give only the module under test a stand-in `os` (`tests/_platform_stub.py`). `self_setup` run tests also no longer depend on whether pytest itself runs inside a virtual environment.
+- `tests/one-offs/run_suite_under_wsl.sh` runs the suite natively under Linux from a Windows box, using the local source trees of the Dazzle stack. The full suite passes on both Windows (642) and Linux (640).
+
+### Not yet done (the safedel fix is in two releases)
+- Same-named items in one batch are refused rather than staged side by side. Staging them under distinct paths -- a common-base layout recorded in the manifest -- needs dazzle-filekit's portable path key and batch planner (DazzleLib/dazzle-filekit#19).
+- A manifest written before staging, `recover last` skipping a batch that is still staging, refusal to recover content whose size does not match, recovery of the true owner in old batches where names collided, and `status` / `list` naming the store that actually holds each batch (#7).
+
 ## [0.10.35-alpha] - 2026-10-31
 
 ### Added

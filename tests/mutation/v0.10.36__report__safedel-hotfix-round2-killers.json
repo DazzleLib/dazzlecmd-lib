@@ -1,0 +1,79 @@
+{
+  "harness": {
+    "name": "mutation_sweep.py",
+    "version": "0.2.0"
+  },
+  "environment": {
+    "python": "3.12.0",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "root": ".",
+    "test_command": [
+      "C:/Python312/python.exe",
+      "-m",
+      "pytest",
+      "-q",
+      "-p",
+      "no:cacheprovider",
+      "-W",
+      "ignore::DeprecationWarning",
+      "tests/test_core_safedel_hotfix.py",
+      "tests/test_core_safedel.py"
+    ],
+    "timestamp": "2026-11-09T17:26:12-05:00"
+  },
+  "results": [
+    {
+      "id": "R2-02",
+      "file": "dazzlecmd_lib/core/safedel/_platform.py",
+      "note": "lexists->exists in the never-overwrite guard (dangling link at dest).",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "r(parents=True)\n        broken = link_dir / \"x.json\"\n        try:\n            os.symlink(str(tmp_path / \"no-such-target\"), str(broken))\n        except (OSError, NotImplementedError):\n            pytest.skip(\"cannot create symlinks here\")\n        regular = tmp_path / \"src\" / \"b\" / \"x.json\"\n        _write(regular, b\"regular item\")\n        dest_dir = tmp_path / \"content\"\n    \n        sr1 = sd.stage_to_trash(str(broken), str(dest_dir), _classified(broken))\n        if not os.path.lexists(dest_dir / \"x.json\"):\n            pytest.skip(\"broken link was not recreated in the trash here\")\n        monkeypatch.setattr(_platform.os, \"rename\", os.replace)   # POSIX semantics\n        sr2 = sd.stage_to_trash(str(regular), str(dest_dir), _classified(regular))\n    \n        assert sr1.success\n>       assert not sr2.success\nE       AssertionError: assert not True\nE        +  where True = StagingResult(success=True, source_path='C:\\\\Users\\\\<user>\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-<user>\\\\pytest-16325\\\\te...-of-<user>\\\\pytest-16325\\\\test_staged_broken_symlink_sti0\\\\content\\\\x.json', method='rename', error=None, warnings=[]).success\n\ntests\\test_core_safedel_hotfix.py:173: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_core_safedel_hotfix.py::test_staged_broken_symlink_still_counts_as_taken\n1 failed, 25 passed in 1.17s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_core_safedel_hotfix.py::test_staged_broken_symlink_still_counts_as_taken"
+      ]
+    },
+    {
+      "id": "R2-04",
+      "file": "dazzlecmd_lib/core/safedel/_platform.py",
+      "note": "Swapped source/dest in the rename result.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "place_a_staged_item(tmp_path, monkeypatch):\n        \"\"\"On POSIX, os.rename onto an existing file replaces it silently, so the\n        lexists refusal is the only thing protecting an already-staged item.\n        Simulate that on any platform by making rename overwrite (os.replace).\"\"\"\n        first = tmp_path / \"src\" / \"a\" / \"x.json\"\n        second = tmp_path / \"src\" / \"b\" / \"x.json\"\n        _write(first, b\"first item\")\n        _write(second, b\"second item\")\n        dest_dir = tmp_path / \"content\"\n    \n        monkeypatch.setattr(_platform.os, \"rename\", os.replace)\n    \n        sr1 = sd.stage_to_trash(str(first), str(dest_dir), _classified(first))\n        sr2 = sd.stage_to_trash(str(second), str(dest_dir), _classified(second))\n    \n        assert sr1.success\n>       assert sr1.source_path == str(first)\nE       AssertionError: assert 'C:\\\\Users\\\\E...ntent\\\\x.json' == 'C:\\\\Users\\\\E...rc\\\\a\\\\x.json'\nE         \nE         Skipping 89 identical leading characters in diff, use -v to show\nE         - e_cannot0\\src\\a\\x.json\nE         ?           -- ^^\nE         + e_cannot0\\content\\x.json\nE         ?            ^^^^^^\n\ntests\\test_core_safedel_hotfix.py:145: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_core_safedel_hotfix.py::test_posix_style_rename_cannot_replace_a_staged_item\n1 failed, 25 passed in 1.05s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_core_safedel_hotfix.py::test_posix_style_rename_cannot_replace_a_staged_item"
+      ]
+    },
+    {
+      "id": "R2-10",
+      "file": "dazzlecmd_lib/core/safedel/_classifier.py",
+      "note": "Dropped normpath on the literal branch.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "====== FAILURES ===================================\n__________________ test_classify_literal_path_is_normalized ___________________\n\ntmp_path = WindowsPath('C:/Users/<user>/AppData/Local/Temp/pytest-of-<user>/pytest-16327/test_classify_literal_path_is_0')\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001D8D2D81850>\n\n    def test_classify_literal_path_is_normalized(tmp_path, monkeypatch):\n        \"\"\"The literal branch still collapses '.' segments and separators.\"\"\"\n        monkeypatch.chdir(tmp_path)\n        monkeypatch.setenv(\"HOME\", str(tmp_path / \"fake-home\"))\n        monkeypatch.setenv(\"USERPROFILE\", str(tmp_path / \"fake-home\"))\n        (tmp_path / \"~\" / \"sub\").mkdir(parents=True)\n    \n        c = sd.classify(\"~/./sub\")\n    \n>       assert c.path == os.path.normpath(str(tmp_path / \"~\" / \"sub\"))\nE       AssertionError: assert 'C:\\\\Users\\\\E...is_0\\\\~/./sub' == 'C:\\\\Users\\\\E..._is_0\\\\~\\\\sub'\nE         \nE         Skipping 90 identical leading characters in diff, use -v to show\nE         - ath_is_0\\~\\sub\nE         ?           ^\nE         + ath_is_0\\~/./sub\nE         ?           ^^^\n\nC:\\code\\dazzlecmd-lib\\tests\\test_core_safedel_hotfix.py:331: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_core_safedel_hotfix.py::test_classify_literal_path_is_normalized\n1 failed, 25 passed in 1.82s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_core_safedel_hotfix.py::test_classify_literal_path_is_normalized"
+      ]
+    }
+  ],
+  "summary": {
+    "killed": 3
+  },
+  "anomalies": [],
+  "overlap": {
+    "kills": {
+      "tests/test_core_safedel_hotfix.py::test_classify_literal_path_is_normalized": [
+        "R2-10"
+      ],
+      "tests/test_core_safedel_hotfix.py::test_posix_style_rename_cannot_replace_a_staged_item": [
+        "R2-04"
+      ],
+      "tests/test_core_safedel_hotfix.py::test_staged_broken_symlink_still_counts_as_taken": [
+        "R2-02"
+      ]
+    },
+    "identical": [],
+    "contained": [],
+    "killed_without_names": []
+  }
+}

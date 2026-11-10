@@ -23,6 +23,7 @@ from dazzlecmd_lib.shell_fix import (
     invocation_line,
     write_fix_scripts,
 )
+from _platform_stub import pretend_os_name
 
 SCRIPTS_DIR = r"C:\Users\u\AppData\Roaming\Python\Python313\Scripts"
 
@@ -100,7 +101,7 @@ class TestInvocationLines:
 
 class TestDetection:
     def test_windows_parent_walk_finds_shell(self, monkeypatch):
-        monkeypatch.setattr(shell_fix.os, "name", "nt")
+        pretend_os_name(monkeypatch, "nt", shell_fix)
         monkeypatch.delenv("MSYSTEM", raising=False)
         me = os.getpid()
         table = {me: (100, "python.exe"),
@@ -111,7 +112,7 @@ class TestDetection:
         assert detect_invoking_shell() == SHELL_POWERSHELL
 
     def test_windows_walk_stops_at_max_hops(self, monkeypatch):
-        monkeypatch.setattr(shell_fix.os, "name", "nt")
+        pretend_os_name(monkeypatch, "nt", shell_fix)
         monkeypatch.delenv("MSYSTEM", raising=False)
         me = os.getpid()
         table = {me: (me, "python.exe")}  # self-loop, no shell
@@ -120,13 +121,13 @@ class TestDetection:
         assert detect_invoking_shell() is None
 
     def test_msystem_fingerprint_wins(self, monkeypatch):
-        monkeypatch.setattr(shell_fix.os, "name", "nt")
+        pretend_os_name(monkeypatch, "nt", shell_fix)
         monkeypatch.setenv("MSYSTEM", "MINGW64")
         monkeypatch.setenv("SHELL", "/usr/bin/bash")
         assert detect_invoking_shell() == SHELL_BASH
 
     def test_posix_shell_env(self, monkeypatch):
-        monkeypatch.setattr(shell_fix.os, "name", "posix")
+        pretend_os_name(monkeypatch, "posix", shell_fix)
         monkeypatch.setenv("SHELL", "/usr/bin/zsh")
         assert detect_invoking_shell() == "zsh"
 
@@ -188,7 +189,9 @@ class TestRunSelfSetupIntegration:
                            else "/usr/bin")
         monkeypatch.setattr(self_setup, "persisted_user_path",
                             lambda: str(tmp_path))
-        monkeypatch.setattr(self_setup.os, "name", "nt")
+        # run_self_setup calls into shell_fix, which picks .cmd vs .sh from
+        # os.name too -- both modules must see Windows.
+        pretend_os_name(monkeypatch, "nt", self_setup, shell_fix)
 
     def test_stale_shell_gets_fix_instructions(self, tmp_path, monkeypatch):
         self._rig_stale_shell(tmp_path, monkeypatch)

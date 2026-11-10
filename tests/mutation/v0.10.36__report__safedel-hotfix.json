@@ -1,0 +1,246 @@
+{
+  "harness": {
+    "name": "mutation_sweep.py",
+    "version": "0.2.0"
+  },
+  "environment": {
+    "python": "3.12.0",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "root": ".",
+    "test_command": [
+      "C:/Python312/python.exe",
+      "-m",
+      "pytest",
+      "-q",
+      "-p",
+      "no:cacheprovider",
+      "-W",
+      "ignore::DeprecationWarning",
+      "tests/test_core_safedel_hotfix.py",
+      "tests/test_core_safedel.py"
+    ],
+    "timestamp": "2026-11-09T17:21:53-05:00"
+  },
+  "results": [
+    {
+      "id": "M01",
+      "file": "dazzlecmd_lib/core/safedel/_platform.py",
+      "note": "Collision guard narrowed to files only.",
+      "verdict": "survived",
+      "restore_ok": true,
+      "output_tail": ""
+    },
+    {
+      "id": "M02",
+      "file": "dazzlecmd_lib/core/safedel/_platform.py",
+      "note": "Comparison flip: EXDEV refuses, others copy.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "ls_back_to_copy __________________\n\ntmp_path = WindowsPath('C:/Users/<user>/AppData/Local/Temp/pytest-of-<user>/pytest-16284/test_exdev_rename_still_falls_0')\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000017EA6681D60>\n\n    def test_exdev_rename_still_falls_back_to_copy(tmp_path, monkeypatch):\n        src = tmp_path / \"src\" / \"x.txt\"\n        _write(src, b\"data\")\n        dest_dir = tmp_path / \"content\"\n        dest_dir.mkdir()\n    \n        def cross_device(a, b):\n            raise OSError(errno.EXDEV, \"cross-device link\")\n    \n        monkeypatch.setattr(_platform.os, \"rename\", cross_device)\n    \n        sr = sd.stage_to_trash(str(src), str(dest_dir), _classified(src))\n    \n>       assert sr.success\nE       AssertionError: assert False\nE        +  where False = StagingResult(success=False, source_path='C:\\\\Users\\\\<user>\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-<user>\\\\pytest-16284\\\\t...\\\\x.txt', method='rename', error='rename into trash failed ([Errno 18] cross-device link); left in place', warnings=[]).success\n\ntests\\test_core_safedel_hotfix.py:185: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_core_safedel_hotfix.py::test_non_exdev_rename_failure_refuses_without_copying\nFAILED tests/test_core_safedel_hotfix.py::test_exdev_rename_still_falls_back_to_copy\n2 failed, 18 passed in 1.06s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_core_safedel_hotfix.py::test_exdev_rename_still_falls_back_to_copy",
+        "tests/test_core_safedel_hotfix.py::test_non_exdev_rename_failure_refuses_without_copying"
+      ]
+    },
+    {
+      "id": "M03",
+      "file": "dazzlecmd_lib/core/safedel/_platform.py",
+      "note": "EEXIST falls back to copy (reintroduces the overwrite).",
+      "verdict": "survived",
+      "restore_ok": true,
+      "output_tail": ""
+    },
+    {
+      "id": "M04",
+      "file": "dazzlecmd_lib/core/safedel/_platform.py",
+      "note": "Non-EXDEV rename failure reported as success.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "est-of-<user>/pytest-16286/test_non_exdev_rename_failure_0')\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000232DA551DC0>\n\n    def test_non_exdev_rename_failure_refuses_without_copying(tmp_path, monkeypatch):\n        src = tmp_path / \"src\" / \"x.txt\"\n        _write(src, b\"data\")\n        dest_dir = tmp_path / \"content\"\n        dest_dir.mkdir()\n    \n        def fail_rename(a, b):\n            raise PermissionError(errno.EACCES, \"in use\", a)\n    \n        def no_copy(*a, **k):\n            raise AssertionError(\"copy fallback must not run for a non-EXDEV error\")\n    \n        monkeypatch.setattr(_platform.os, \"rename\", fail_rename)\n        monkeypatch.setattr(_platform.shutil, \"copy2\", no_copy)\n    \n        sr = sd.stage_to_trash(str(src), str(dest_dir), _classified(src))\n    \n>       assert not sr.success\nE       assert not True\nE        +  where True = StagingResult(success=True, source_path='C:\\\\Users\\\\<user>\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-<user>\\\\pytest-16286\\\\te...\\\\\\pytest-of-<user>\\\\\\\\pytest-16286\\\\\\\\test_non_exdev_rename_failure_0\\\\\\\\src\\\\\\\\x.txt'); left in place\", warnings=[]).success\n\ntests\\test_core_safedel_hotfix.py:167: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_core_safedel_hotfix.py::test_non_exdev_rename_failure_refuses_without_copying\n1 failed, 19 passed in 0.93s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_core_safedel_hotfix.py::test_non_exdev_rename_failure_refuses_without_copying"
+      ]
+    },
+    {
+      "id": "M05",
+      "file": "dazzlecmd_lib/core/safedel/_platform.py",
+      "note": "Swapped copy arguments.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "===== FAILURES ===================================\n_________________ test_exdev_rename_still_falls_back_to_copy __________________\n\ntmp_path = WindowsPath('C:/Users/<user>/AppData/Local/Temp/pytest-of-<user>/pytest-16287/test_exdev_rename_still_falls_0')\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000222559814F0>\n\n    def test_exdev_rename_still_falls_back_to_copy(tmp_path, monkeypatch):\n        src = tmp_path / \"src\" / \"x.txt\"\n        _write(src, b\"data\")\n        dest_dir = tmp_path / \"content\"\n        dest_dir.mkdir()\n    \n        def cross_device(a, b):\n            raise OSError(errno.EXDEV, \"cross-device link\")\n    \n        monkeypatch.setattr(_platform.os, \"rename\", cross_device)\n    \n        sr = sd.stage_to_trash(str(src), str(dest_dir), _classified(src))\n    \n>       assert sr.success\nE       AssertionError: assert False\nE        +  where False = StagingResult(success=False, source_path='C:\\\\Users\\\\<user>\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-<user>\\\\pytest-16287\\\\t...od='copy', error='Failed to stage: [WinError 2] The system cannot find the file specified; left in place', warnings=[]).success\n\ntests\\test_core_safedel_hotfix.py:185: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_core_safedel_hotfix.py::test_exdev_rename_still_falls_back_to_copy\n1 failed, 19 passed in 0.89s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_core_safedel_hotfix.py::test_exdev_rename_still_falls_back_to_copy"
+      ]
+    },
+    {
+      "id": "M06",
+      "file": "dazzlecmd_lib/core/safedel/_platform.py",
+      "note": "Partial-copy cleanup dropped.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "h):\n        src = tmp_path / \"src\" / \"d\"\n        _write(src / \"one.txt\", b\"1\")\n        _write(src / \"two.txt\", b\"2\")\n        dest_dir = tmp_path / \"content\"\n        dest_dir.mkdir()\n    \n        def cross_device(a, b):\n            raise OSError(errno.EXDEV, \"cross-device link\")\n    \n        def half_copy(source, dest):\n            os.makedirs(dest)\n            with open(os.path.join(dest, \"one.txt\"), \"wb\") as f:\n                f.write(b\"1\")\n            raise OSError(errno.ENOSPC, \"disk full\")\n    \n        import dazzle_filekit.operations as fk_ops\n        monkeypatch.setattr(_platform.os, \"rename\", cross_device)\n        monkeypatch.setattr(fk_ops, \"copy_tree_preserving_links\", half_copy)\n    \n        sr = sd.stage_to_trash(str(src), str(dest_dir), _classified(src))\n    \n        assert not sr.success\n>       assert not (dest_dir / \"d\").exists()          # no partial tree left behind\nE       AssertionError: assert not True\nE        +  where True = exists()\nE        +    where exists = (WindowsPath('C:/Users/<user>/AppData/Local/Temp/pytest-of-<user>/pytest-16288/test_partial_cross_device_copy0/content') / 'd').exists\n\ntests\\test_core_safedel_hotfix.py:213: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_core_safedel_hotfix.py::test_partial_cross_device_copy_is_removed\n1 failed, 19 passed in 0.93s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_core_safedel_hotfix.py::test_partial_cross_device_copy_is_removed"
+      ]
+    },
+    {
+      "id": "M07",
+      "file": "dazzlecmd_lib/core/safedel/_platform.py",
+      "note": "Cleanup warning truthiness flip.",
+      "verdict": "survived",
+      "restore_ok": true,
+      "output_tail": ""
+    },
+    {
+      "id": "M08",
+      "file": "dazzlecmd_lib/core/safedel/_platform.py",
+      "note": "lexists -> exists in cleanup.",
+      "verdict": "survived",
+      "restore_ok": true,
+      "output_tail": ""
+    },
+    {
+      "id": "M09",
+      "file": "dazzlecmd_lib/core/safedel/_platform.py",
+      "note": "Dropped link check in cleanup.",
+      "verdict": "survived",
+      "restore_ok": true,
+      "output_tail": ""
+    },
+    {
+      "id": "M10",
+      "file": "dazzlecmd_lib/core/safedel/_platform.py",
+      "note": "Swallowed cleanup failure.",
+      "verdict": "survived",
+      "restore_ok": true,
+      "output_tail": ""
+    },
+    {
+      "id": "M11",
+      "file": "dazzlecmd_lib/core/safedel/_classifier.py",
+      "note": "Leading whitespace no longer counts.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "f test_classify_keeps_surrounding_whitespace(tmp_path, monkeypatch):\n        monkeypatch.chdir(tmp_path)\n        try:\n            (tmp_path / \" lead\").write_text(\"x\")\n        except OSError:\n            pytest.skip(\"cannot create a name with a leading space here\")\n    \n        c = sd.classify(\" lead\")\n    \n>       assert c.path.endswith(os.sep + \" lead\")\nE       assert False\nE        +  where False = <built-in method endswith of str object at 0x000001BA6DA9D2C0>(('\\\\' + ' lead'))\nE        +    where <built-in method endswith of str object at 0x000001BA6DA9D2C0> = 'C:\\\\Users\\\\<user>\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-<user>\\\\pytest-16293\\\\test_classify_keeps_surroundin0\\\\lead'.endswith\nE        +      where 'C:\\\\Users\\\\<user>\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-<user>\\\\pytest-16293\\\\test_classify_keeps_surroundin0\\\\lead' = Classification(path='C:\\\\Users\\\\<user>\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-<user>\\\\pytest-16293\\\\test_classify_keeps_su...ytest-of-<user>\\\\\\\\pytest-16293\\\\\\\\test_classify_keeps_surroundin0\\\\\\\\lead'\"], content_preservable=True, exists=False).path\nE        +    and   '\\\\' = os.sep\n\nC:\\code\\dazzlecmd-lib\\tests\\test_core_safedel_hotfix.py:245: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_core_safedel_hotfix.py::test_classify_keeps_surrounding_whitespace\n1 failed, 19 passed in 1.56s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_core_safedel_hotfix.py::test_classify_keeps_surrounding_whitespace"
+      ]
+    },
+    {
+      "id": "M12",
+      "file": "dazzlecmd_lib/core/safedel/_classifier.py",
+      "note": "Dropped expanduser: literal ~ undetected.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "lder\")\n        monkeypatch.chdir(work)\n    \n>       result = _store_in(tmp_path).trash([\"~\"])\n\nC:\\code\\dazzlecmd-lib\\tests\\test_core_safedel_hotfix.py:284: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\nC:\\code\\dazzlecmd-lib\\dazzlecmd_lib\\core\\safedel\\_store.py:236: in trash\n    total_size = calculate_size(preservable_paths)\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\n\nargs = (['C:\\\\Users\\\\<user>'],), kwargs = {}, a = ['C:\\\\Users\\\\<user>']\nitems = ['C:\\\\Users\\\\<user>'], item = 'C:\\\\Users\\\\<user>'\n\n    def wrapped(*args, **kwargs):\n        for a in args:\n            items = a if isinstance(a, (list, tuple)) else [a]\n            for item in items:\n                if isinstance(item, str) and \\\n                        os.path.normcase(os.path.abspath(item)) == real_home:\n>                   raise AssertionError(f\"{fn.__name__} was handed the home folder\")\nE                   AssertionError: calculate_size was handed the home folder\n\nC:\\code\\dazzlecmd-lib\\tests\\test_core_safedel_hotfix.py:268: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_core_safedel_hotfix.py::test_classify_takes_expandable_names_literally[~]\nFAILED tests/test_core_safedel_hotfix.py::test_trash_of_literal_tilde_never_reaches_home\n2 failed, 18 passed in 1.53s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_core_safedel_hotfix.py::test_classify_takes_expandable_names_literally[~]",
+        "tests/test_core_safedel_hotfix.py::test_trash_of_literal_tilde_never_reaches_home"
+      ]
+    },
+    {
+      "id": "M13",
+      "file": "dazzlecmd_lib/core/safedel/_classifier.py",
+      "note": "Boolean flip on the literal branch.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "\\_store.py:236: in trash\n    total_size = calculate_size(preservable_paths)\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\n\nargs = (['C:\\\\Users\\\\<user>'],), kwargs = {}, a = ['C:\\\\Users\\\\<user>']\nitems = ['C:\\\\Users\\\\<user>'], item = 'C:\\\\Users\\\\<user>'\n\n    def wrapped(*args, **kwargs):\n        for a in args:\n            items = a if isinstance(a, (list, tuple)) else [a]\n            for item in items:\n                if isinstance(item, str) and \\\n                        os.path.normcase(os.path.abspath(item)) == real_home:\n>                   raise AssertionError(f\"{fn.__name__} was handed the home folder\")\nE                   AssertionError: calculate_size was handed the home folder\n\nC:\\code\\dazzlecmd-lib\\tests\\test_core_safedel_hotfix.py:268: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_core_safedel_hotfix.py::test_classify_takes_expandable_names_literally[~]\nFAILED tests/test_core_safedel_hotfix.py::test_classify_takes_expandable_names_literally[$HOME]\nFAILED tests/test_core_safedel_hotfix.py::test_classify_takes_expandable_names_literally[%USERPROFILE%]\nFAILED tests/test_core_safedel_hotfix.py::test_classify_keeps_surrounding_whitespace\nFAILED tests/test_core_safedel_hotfix.py::test_trash_of_literal_tilde_never_reaches_home\n5 failed, 15 passed in 1.53s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_core_safedel_hotfix.py::test_classify_keeps_surrounding_whitespace",
+        "tests/test_core_safedel_hotfix.py::test_classify_takes_expandable_names_literally[$HOME]",
+        "tests/test_core_safedel_hotfix.py::test_classify_takes_expandable_names_literally[%USERPROFILE%]",
+        "tests/test_core_safedel_hotfix.py::test_classify_takes_expandable_names_literally[~]",
+        "tests/test_core_safedel_hotfix.py::test_trash_of_literal_tilde_never_reaches_home"
+      ]
+    },
+    {
+      "id": "M14",
+      "file": "dazzlecmd_lib/core/safedel/_classifier.py",
+      "note": "abspath re-expands ~.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "lder\")\n        monkeypatch.chdir(work)\n    \n>       result = _store_in(tmp_path).trash([\"~\"])\n\nC:\\code\\dazzlecmd-lib\\tests\\test_core_safedel_hotfix.py:284: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\nC:\\code\\dazzlecmd-lib\\dazzlecmd_lib\\core\\safedel\\_store.py:236: in trash\n    total_size = calculate_size(preservable_paths)\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\n\nargs = (['C:\\\\Users\\\\<user>'],), kwargs = {}, a = ['C:\\\\Users\\\\<user>']\nitems = ['C:\\\\Users\\\\<user>'], item = 'C:\\\\Users\\\\<user>'\n\n    def wrapped(*args, **kwargs):\n        for a in args:\n            items = a if isinstance(a, (list, tuple)) else [a]\n            for item in items:\n                if isinstance(item, str) and \\\n                        os.path.normcase(os.path.abspath(item)) == real_home:\n>                   raise AssertionError(f\"{fn.__name__} was handed the home folder\")\nE                   AssertionError: calculate_size was handed the home folder\n\nC:\\code\\dazzlecmd-lib\\tests\\test_core_safedel_hotfix.py:268: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_core_safedel_hotfix.py::test_classify_takes_expandable_names_literally[~]\nFAILED tests/test_core_safedel_hotfix.py::test_trash_of_literal_tilde_never_reaches_home\n2 failed, 18 passed in 1.57s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_core_safedel_hotfix.py::test_classify_takes_expandable_names_literally[~]",
+        "tests/test_core_safedel_hotfix.py::test_trash_of_literal_tilde_never_reaches_home"
+      ]
+    }
+  ],
+  "summary": {
+    "survived": 6,
+    "killed": 8
+  },
+  "anomalies": [],
+  "overlap": {
+    "kills": {
+      "tests/test_core_safedel_hotfix.py::test_classify_keeps_surrounding_whitespace": [
+        "M11",
+        "M13"
+      ],
+      "tests/test_core_safedel_hotfix.py::test_classify_takes_expandable_names_literally[$HOME]": [
+        "M13"
+      ],
+      "tests/test_core_safedel_hotfix.py::test_classify_takes_expandable_names_literally[%USERPROFILE%]": [
+        "M13"
+      ],
+      "tests/test_core_safedel_hotfix.py::test_classify_takes_expandable_names_literally[~]": [
+        "M12",
+        "M13",
+        "M14"
+      ],
+      "tests/test_core_safedel_hotfix.py::test_exdev_rename_still_falls_back_to_copy": [
+        "M02",
+        "M05"
+      ],
+      "tests/test_core_safedel_hotfix.py::test_non_exdev_rename_failure_refuses_without_copying": [
+        "M02",
+        "M04"
+      ],
+      "tests/test_core_safedel_hotfix.py::test_partial_cross_device_copy_is_removed": [
+        "M06"
+      ],
+      "tests/test_core_safedel_hotfix.py::test_trash_of_literal_tilde_never_reaches_home": [
+        "M12",
+        "M13",
+        "M14"
+      ]
+    },
+    "identical": [
+      [
+        "tests/test_core_safedel_hotfix.py::test_classify_takes_expandable_names_literally[$HOME]",
+        "tests/test_core_safedel_hotfix.py::test_classify_takes_expandable_names_literally[%USERPROFILE%]"
+      ],
+      [
+        "tests/test_core_safedel_hotfix.py::test_classify_takes_expandable_names_literally[~]",
+        "tests/test_core_safedel_hotfix.py::test_trash_of_literal_tilde_never_reaches_home"
+      ]
+    ],
+    "contained": [
+      [
+        "tests/test_core_safedel_hotfix.py::test_classify_takes_expandable_names_literally[$HOME]",
+        "tests/test_core_safedel_hotfix.py::test_classify_keeps_surrounding_whitespace"
+      ],
+      [
+        "tests/test_core_safedel_hotfix.py::test_classify_takes_expandable_names_literally[$HOME]",
+        "tests/test_core_safedel_hotfix.py::test_classify_takes_expandable_names_literally[~]"
+      ],
+      [
+        "tests/test_core_safedel_hotfix.py::test_classify_takes_expandable_names_literally[$HOME]",
+        "tests/test_core_safedel_hotfix.py::test_trash_of_literal_tilde_never_reaches_home"
+      ],
+      [
+        "tests/test_core_safedel_hotfix.py::test_classify_takes_expandable_names_literally[%USERPROFILE%]",
+        "tests/test_core_safedel_hotfix.py::test_classify_keeps_surrounding_whitespace"
+      ],
+      [
+        "tests/test_core_safedel_hotfix.py::test_classify_takes_expandable_names_literally[%USERPROFILE%]",
+        "tests/test_core_safedel_hotfix.py::test_classify_takes_expandable_names_literally[~]"
+      ],
+      [
+        "tests/test_core_safedel_hotfix.py::test_classify_takes_expandable_names_literally[%USERPROFILE%]",
+        "tests/test_core_safedel_hotfix.py::test_trash_of_literal_tilde_never_reaches_home"
+      ]
+    ],
+    "killed_without_names": []
+  }
+}

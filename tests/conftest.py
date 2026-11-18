@@ -1,8 +1,42 @@
 """Pytest fixtures for the dazzlecmd-lib test suite."""
 
+import os
 import warnings
 
 import pytest
+
+_LEAK_IGNORE = {"__pycache__", ".pytest_cache"}
+
+
+def _top_level_names(folder):
+    try:
+        return {n for n in os.listdir(folder) if n not in _LEAK_IGNORE}
+    except OSError:
+        return set()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _no_test_writes_outside_its_temp_folder():
+    """Fail the run if a test left anything new beside the source.
+
+    A test that builds a path from a Windows-style drive name on Linux, or
+    forgets to give a trash store its own temp folder, writes into whatever
+    directory the suite was started from (that is how folders literally named
+    ``C:`` holding ``.safedel-trash-1000`` appeared in the dazzlecmd checkout
+    on 2026-11-09). This watches where a stray would land: the current
+    directory, the repository root and the tests folder. New top-level names
+    there after the session are a failure.
+    """
+    here = os.path.dirname(os.path.abspath(__file__))
+    watched = {os.path.abspath(os.getcwd()), os.path.dirname(here), here}
+    before = {d: _top_level_names(d) for d in watched}
+    yield
+    leaks = {d: sorted(_top_level_names(d) - before[d]) for d in watched}
+    leaks = {d: names for d, names in leaks.items() if names}
+    assert not leaks, (
+        "a test wrote outside its temp folder: "
+        + "; ".join(f"{d}: {names!r}" for d, names in leaks.items())
+    )
 
 
 @pytest.fixture

@@ -36,20 +36,35 @@ def _write(path, data):
 # -- 1. staging never overwrites -------------------------------------------
 
 
-def test_same_name_files_lose_no_bytes(tmp_path):
-    """Three same-named files: one is staged, two stay in place, and every
-    original's bytes still exist somewhere (in place or in the trash)."""
+def _three_same_named_files(tmp_path):
     originals = {}
     for sub in ("a", "b", "c"):
         p = tmp_path / "src" / sub / "x.json"
         data = f"content-{sub}".encode() * (len(originals) + 1)
         _write(p, data)
         originals[str(p)] = data
+    return originals
+
+
+def _no_precheck(monkeypatch):
+    """Switch off the plan's same-name refusal, so the per-item guard in
+    ``_stage_regular`` -- the second line of defence -- is what is tested.
+    Every name gets a distinct comparison key."""
+    counter = iter(range(10 ** 6))
+    monkeypatch.setattr(_store, "_name_key", lambda name: f"k{next(counter)}")
+
+
+def test_same_name_files_lose_no_bytes(tmp_path, monkeypatch):
+    """The per-item guard alone: one of three same-named files is staged,
+    two stay in place, and every original's bytes still exist somewhere."""
+    _no_precheck(monkeypatch)
+    originals = _three_same_named_files(tmp_path)
 
     result = _store_in(tmp_path).trash(list(originals))
 
     assert not result.success
     assert len(result.errors) == 2
+    assert (result.staged_count, result.not_staged_count) == (1, 2)
     staged = [e for e in result.entries if e.content_path]
     assert len(staged) == 1
     for path, data in originals.items():
@@ -62,7 +77,8 @@ def test_same_name_files_lose_no_bytes(tmp_path):
         assert got == data, path
 
 
-def test_same_name_dirs_second_left_in_place(tmp_path):
+def test_same_name_dirs_second_left_in_place(tmp_path, monkeypatch):
+    _no_precheck(monkeypatch)
     a = tmp_path / "src" / "a" / "d"
     b = tmp_path / "src" / "b" / "d"
     _write(a / "ia.txt", b"A")

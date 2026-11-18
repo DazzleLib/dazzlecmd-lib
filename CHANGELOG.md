@@ -8,6 +8,48 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 This repository is the standalone home of the library, extracted from the dazzlecmd monorepo at v0.8.55 (2026-06-24). Commit history through 0.8.55 lives in the [dazzlecmd](https://github.com/DazzleTools/dazzlecmd) repository's git log (under `packages/dazzlecmd-lib/`); this CHANGELOG and all subsequent history continue here.
 
+## [0.10.37-alpha] - 2026-11-18
+
+safedel tells the truth about what it did, pauses when nobody can answer, and can no longer delete trash content it did not restore. On 2026-11-17 `dz safedel` was run by an agent without `--yes`: it prompted, read end-of-file, printed "Aborted." and exited 0, and the command line that called it went on to delete through two junctions. This release changes each link of that chain in the engine. The collision-free trash layout is still to come (#7).
+
+### Changed (callers of `TrashStore.trash()` should read this)
+- **A batch is planned before anything moves, and some batches are now refused whole.** `TrashStore.plan()` decides everything and changes nothing; `TrashStore.execute()` performs exactly that plan; `trash()` is the two together. A refused plan returns `success=False` with the new `refused=True`, the reasons in `errors`, and no batch folder. Refused: two items that would take the same name (compared without regard to case or Unicode form), where 0.10.36 staged the first and left the rest; a folder that a known junction or directory symlink points at; a `delete-through` scope that does not match the links given; a copy-first batch over its size limit; a trash store path that is not absolute.
+- **`core.safedel` API version 3.** New: `TrashPlan`, `PlannedItem`, `TrashResult.refused` / `staged_count` / `not_staged_count` / `postcondition_failures`, `stdin_is_interactive`, `split_yes` / `parse_scopes` / `SCOPES` / `ScopeError`, the `EXIT_*` codes, `verdict_line`, `result_verdict`, `copy_first_settings`, `links_pointing_at`.
+- **`dz mode switch --force` no longer overrides a refusal.** `--force` used to answer any failed backup by removing the tool folder outright. It still does that for a backup that failed; when safedel refuses the delete itself, the swap stops with nothing deleted.
+
+### Added
+- **Graded exit codes and a verdict line** (`_verdict`): 0 staged, 1 error, 2 usage, 3 refused with nothing moved, 4 partial, 5 blocked by the command guard, 6 a check after the move failed. `result_verdict()` maps a result to its code; a result that carries any error is never reported as staged.
+- **Console detection that asks the real question** (`stdin_is_interactive`): on Windows, `isatty()` is true for the `NUL` device, which is what an agent harness attaches to stdin. A console handle (`GetConsoleMode`) or a Git Bash / mintty pseudo-terminal counts as a person at the keyboard; `NUL`, a pipe and a file do not. `clean`'s zone checks use it too.
+- **Scoped `--yes`** (`split_yes`): `--yes` alone means "do not prompt"; it can carry `noninteractive`, `delete-through-junction`, `delete-through-symlink`, `copy-first`, `no-copy-first`, `dangerous`. The word after `--yes` is read as scopes only when every part is a scope name, so `--yes` never swallows a path; a list with an unknown name is an error, not consent.
+- **Delete-through, by explicit scope.** A junction or symlink loses only the link, as before. With the matching scope, what the link points at is staged as well.
+- **The folder a link points at is protected.** Staging a real folder is refused when a junction or directory symlink in a worktree of any enclosing git repository (read from `.git/worktrees/*/gitdir`, no git process), or one recorded in `~/.safedel/junctions.json`, points at exactly that folder. Nothing is resolved; the comparison is lexical.
+- **Copy-first.** Optionally, each item is copied into the batch (`copy-first/`) and the copy verified by SHA-256 before the original is moved. The copy never enters a link inside a folder (it records it). Default limit 10 MB per batch; settings in `~/.safedel/config.json` (`copy_first.mode`: `auto` / `always` / `off`, `copy_first.max_bytes`) or `SAFEDEL_COPY_FIRST` / `SAFEDEL_COPY_FIRST_MAX`.
+- **A check after the move.** `execute()` confirms that every item it reports as staged is gone from where it was and present in the trash, and that a removed link's target still has the entries it had. A failure is reported in `postcondition_failures` (exit code 6).
+- **The manifest is written before anything moves** (`state: staging`), rewritten after each item, and marked `complete` at the end, so an interrupted run leaves a record of what it had already moved.
+
+### Fixed
+- **`recover` could permanently delete trash content.** A batch whose manifest was missing or unreadable -- what a crash or an interrupted run leaves, because the manifest was written last -- loaded as "no entries"; recovery then reported "Recovered 0 item(s)", exited 0 and removed the whole folder, content included. An unreadable manifest is now an error, the folder is kept, and a batch folder is removed after recovery only when its manifest was readable, it listed entries, and nothing is left under `content/`. `recover last` now means the most recent *complete* batch; an unfinished or unreadable one is recovered by naming it.
+- **Removing a batch could remove a different batch with the same name.** Batch folders are named to the second, and each trash store (the central one, one per volume) names its own, so two stores can hold the same name; removal searched every store by name and took the first. Recovery and `clean` now remove the exact folder they acted on.
+- **Batch folder names are claimed, not just looked up.** Two runs in the same second could share one folder, the second manifest replacing the first.
+- **Stray folders named `C:` holding `.safedel-trash-<uid>`.** On Linux, a Windows-style mount point (`C:/`) is a relative name, and per-volume store resolution created it under the current directory. Store roots must now be absolute on the running platform.
+- **`list` and `status` name the stores that hold the batches**, not the central default, and `list` no longer shows the wrong folder when two stores share a name.
+- **A previewed delete creates nothing.** Choosing the store no longer creates store folders or writes the volume registry; that happens only when a batch is actually executed.
+- **Re-creating a junction on recovery** no longer builds a PowerShell command from unquoted paths (a `'` in a path broke it).
+- **`--metadata-only` recovery no longer deletes the trash copy.** After a metadata-only recovery with no errors, the trash folder was removed -- but metadata-only never moves the content out, so the only trash copy of the file was destroyed. The folder is now kept. (Affects `cmd_recover` and `recover_folder`.)
+- **`recover` and `list` accept a batch folder name exactly as `list` prints it.** `dz safedel recover 2026-11-17__17-24-12` printed "No matching entries to recover.", because any date-led argument got `__*` appended. Folder names (with or without a `_NNN` suffix) and globs over them are now used as-is, and a single quoted `"2026-11-17 17:24*"` is read as date plus time. Existing forms (`2026-11-17`, `2026-11-17 17:24` as two arguments, `today 17:24:12`, `last`) are unchanged.
+- **Items refused at delete time are reported as skipped, not as errors.** Recovering a batch where 0.10.36 refused a same-named item printed `ERROR: No content available to recover for: <name>` and counted it as a failure, so the command failed and kept the folder. It now prints `Skipped: <path> -- never staged; the original is still in place` (or says the original is gone, if it was removed by hand since), does not count it as an error, and a dry run says "Would skip".
+
+### Known limits
+- Copying a folder across volumes (staging to a store on another drive, and recovering a folder) still uses a tree copy that enters junctions inside the folder and copies what they point at. Nothing is deleted by this, but a recovered folder gets a real folder where a junction was. Measured on Windows 11 with Python 3.12 and dazzle-filekit 0.4.3; fixed with the recovery rework.
+- Recovering a folder copies it back, so files inside it get new creation times.
+- Same-named items are refused, not yet staged side by side (#7).
+
+### Tests
+- `tests/test_core_safedel_truth.py` (92): every test that asserts a refusal first replaces the functions that move, delete or copy with ones that raise, so a refusal that fails cannot touch anything. Audited by reverting 61 behaviours one at a time on a scratch copy of the source (`tests/one-offs/redgreen_p1_safedel_truth.py`); each reversion turns at least one test red.
+- `tests/test_core_safedel_recover_fixes.py` (15): red-green audited, 9 anchors and 6 fences that pin the existing argument forms.
+- The suite now fails if any test leaves a new file or folder beside the source (`tests/conftest.py`).
+- Full suite: Windows 748 passed, 2 skipped; Linux (WSL) 746 passed, 3 skipped.
+
 ## [0.10.36-alpha] - 2026-11-10
 
 An interim release that stops two safedel data-safety bugs now, ahead of the full fix. The collision-free trash layout is not finished; see "Not yet done" below (#7).

@@ -65,11 +65,59 @@ def _resolve_folders(
     glob_pattern = time_pattern_to_glob(positional_args)
 
     if glob_pattern is None:
-        # "last" -- get most recent across all stores
+        # "last" -- the most recent COMPLETE batch across all stores. A batch
+        # that never finished (a run that crashed or was stopped) or whose
+        # manifest cannot be read is not what "the last deletion" means, and
+        # with two sessions it may be someone else's run in progress. Such a
+        # batch is recovered by naming it exactly.
         all_folders = store.list_entries()
-        return [all_folders[-1]] if all_folders else []
+        skipped = []
+        for folder in reversed(all_folders):
+            if folder.state == "complete":
+                for s in skipped:
+                    print(f"  [skipping {s.folder_name}: {_state_note(s)}; "
+                          f"name it exactly to recover it]", file=sys.stderr)
+                return [folder]
+            skipped.append(folder)
+        for s in skipped:
+            print(f"  [skipping {s.folder_name}: {_state_note(s)}; "
+                  f"name it exactly to recover it]", file=sys.stderr)
+        return []
 
     return store.list_entries(pattern=glob_pattern, age_filter=age_filter)
+
+
+def _state_note(folder: TrashFolder) -> str:
+    """Why a batch is not an ordinary complete one, in a few words."""
+    if folder.manifest_error:
+        return f"its manifest is {folder.manifest_error}"
+    if folder.state == "staging":
+        return "the run that made it did not finish"
+    return f"state {folder.state}"
+
+
+def _remove_recovered_folder(store: TrashStore, folder: TrashFolder
+                             ) -> Optional[str]:
+    """Remove a batch folder after recovery -- only when it is provably
+    spent. Returns None when removed, or the reason it was kept.
+
+    A folder is removed only if its manifest was readable, it listed at
+    least one entry, and nothing is left under ``content/``. Anything else
+    means the folder may still hold the only copy of something, so it stays.
+    The folder is removed by its exact path, never by a name search across
+    stores.
+    """
+    if folder.manifest_error:
+        return f"its manifest is {folder.manifest_error}"
+    if not folder.entries:
+        return "its manifest lists no entries"
+    left = TrashStore.leftover_content(folder)
+    if left:
+        return (f"{len(left)} item(s) are still in it "
+                f"(first: {left[0]})")
+    if not store.remove_folder(folder.folder_name, folder.folder_path):
+        return "it could not be removed"
+    return None
 
 
 def _fnmatch(name: str, pattern: str) -> bool:
@@ -135,27 +183,30 @@ def cmd_list(
     config = load_config()
     now = datetime.datetime.now()
 
+    # The folders are used as found. Looking each one up again BY NAME would
+    # return the first store's folder when two stores hold the same name.
     if json_output:
-        items = []
-        for name in folder_names:
-            folder = store.get_folder(name)
-            if folder:
-                items.append(_folder_to_json(folder, config, now))
+        items = [_folder_to_json(folder, config, now) for folder in folders]
         print(json.dumps(items, indent=2, default=str))
         return 0
 
-    # Table output
-    print(f"\n  Trash store: {store.store_path}")
+    # Table output. Name the store(s) that actually hold what is listed --
+    # usually a per-volume store, not the central default.
+    stores = sorted({os.path.dirname(f.folder_path) for f in folders})
+    if len(stores) == 1:
+        print(f"\n  Trash store: {stores[0]}")
+    else:
+        print(f"\n  Trash stores ({len(stores)}):")
+        for s in stores:
+            print(f"    {s}")
     if truncated:
         print(f"  {len(folder_names)} most recent of {total} folder(s) "
               f"(--count 0 or --all to show all):\n")
     else:
         print(f"  {len(folder_names)} matching folder(s):\n")
 
-    for name in folder_names:
-        folder = store.get_folder(name)
-        if not folder:
-            continue
+    for folder in folders:
+        name = folder.folder_name
 
         age = now - folder.deleted_at
         zone = determine_zone(folder.deleted_at, config, now)
@@ -198,15 +249,58 @@ def _recover_folder_entries(
     """
     recovered = 0
     errors = 0
+    if folder.manifest_error:
+        # No manifest means no record of where anything came from. That is
+        # an error to report, never "0 items, all done" -- the folder's
+        # content/ may hold the only copy of something.
+        print(
+            f"  ERROR: {folder.folder_name}: the manifest is "
+            f"{folder.manifest_error}, so there is no record of where its "
+            f"contents came from. Nothing was recovered and the folder was "
+            f"kept: {folder.folder_path}",
+            file=sys.stderr,
+        )
+        return 0, 1
+    if folder.state == "staging":
+        print(f"  NOTE: {folder.folder_name} is from a run that did not "
+              f"finish; recovering what it had already moved.")
     for entry in folder.entries:
-        if _recover_entry(
+        outcome = _recover_entry(
             store, folder, entry,
             to_path=to_path, metadata_only=metadata_only, dry_run=dry_run,
-        ):
+        )
+        if outcome is SKIPPED:
+            continue        # never staged: neither recovered nor a failure
+        if outcome:
             recovered += 1
         else:
             errors += 1
     return recovered, errors
+
+
+# _recover_entry's third outcome: the entry was never staged (refused because
+# another item of the same name was already in the batch), so there is
+# nothing to recover and nothing went wrong.
+SKIPPED = "skipped"
+
+
+def _never_staged(entry: TrashEntry) -> bool:
+    """True for an entry whose content was expected but never moved in."""
+    return (
+        entry.content_path is None
+        and entry.content_preserved
+        and entry.file_type not in ("symlink_file", "symlink_dir", "junction",
+                                    "broken_link")
+    )
+
+
+def _skip_message(entry: TrashEntry, dry_run: bool) -> str:
+    verb = "Would skip" if dry_run else "Skipped"
+    if os.path.lexists(entry.original_path):
+        where = "the original is still in place"
+    else:
+        where = "it was left in place at delete time and is no longer there"
+    return f"  {verb}: {entry.original_path} -- never staged; {where}"
 
 
 def cmd_recover(
@@ -230,6 +324,7 @@ def cmd_recover(
 
     total_recovered = 0
     total_errors = 0
+    kept_folders = 0
 
     for folder in folders:
         if not folder:
@@ -245,8 +340,13 @@ def cmd_recover(
         # If everything so far recovered cleanly and not dry-run, remove the
         # trash folder. (Cumulative `total_errors` is intentional/pre-existing:
         # a failure in an earlier folder suppresses later removals.)
-        if not dry_run and total_errors == 0:
-            store.remove_folder(folder.folder_name)
+        # --metadata-only never moves content out, so the folder still holds
+        # the only trash copy: removing it would destroy that copy.
+        if not dry_run and not metadata_only and total_errors == 0:
+            kept = _remove_recovered_folder(store, folder)
+            if kept:
+                print(f"  Kept trash folder {folder.folder_name}: {kept}")
+                kept_folders += 1
 
     if dry_run:
         print(f"\n  DRY RUN: Would recover {total_recovered} item(s).")
@@ -255,7 +355,7 @@ def cmd_recover(
         if total_errors:
             print(f"  {total_errors} error(s) occurred.", file=sys.stderr)
 
-    return 1 if total_errors > 0 else 0
+    return 1 if (total_errors > 0 or kept_folders > 0) else 0
 
 
 def recover_folder(
@@ -288,8 +388,12 @@ def recover_folder(
         to_path=to_path, metadata_only=metadata_only, dry_run=dry_run,
     )
 
-    if not dry_run and errors == 0:
-        store.remove_folder(folder.folder_name)
+    # --metadata-only leaves the content in the trash; keep the folder.
+    kept = None
+    if not dry_run and not metadata_only and errors == 0:
+        kept = _remove_recovered_folder(store, folder)
+        if kept:
+            print(f"  Kept trash folder {folder.folder_name}: {kept}")
 
     if dry_run:
         print(f"\n  DRY RUN: Would recover {recovered} item(s) from "
@@ -299,7 +403,7 @@ def recover_folder(
         if errors:
             print(f"  {errors} error(s) occurred.", file=sys.stderr)
 
-    return 1 if errors > 0 else 0
+    return 1 if (errors > 0 or kept) else 0
 
 
 def _recover_entry(
@@ -362,6 +466,10 @@ def _recover_entry(
     if entry.content_path:
         content_path = os.path.join(folder.folder_path, entry.content_path)
 
+    if _never_staged(entry):
+        print(_skip_message(entry, dry_run))
+        return SKIPPED
+
     if dry_run:
         print(f"  Would recover: {entry.original_name}")
         print(f"    Type: {entry.file_type}")
@@ -398,6 +506,16 @@ def _recover_entry(
                 is_dir = entry.file_type == "symlink_dir"
                 os.symlink(entry.link_target, target, target_is_directory=is_dir)
                 print(f"  Recovered symlink: {target} -> {entry.link_target}")
+                # The copy of the link kept under content/ is spent now.
+                # (lexists + rmdir/unlink act on the link itself.)
+                if content_path and os.path.lexists(content_path):
+                    try:
+                        if is_dir and sys.platform == "win32":
+                            os.rmdir(content_path)
+                        else:
+                            os.unlink(content_path)
+                    except OSError:
+                        pass
             else:
                 print(f"  ERROR: No link target recorded for symlink", file=sys.stderr)
                 return False
@@ -474,10 +592,12 @@ def cmd_clean(
 
     config = load_config()
     now = datetime.datetime.now()
-    is_tty = hasattr(sys.stdin, "isatty") and sys.stdin.isatty()
+    from ._console import stdin_is_interactive
+    is_tty = stdin_is_interactive()
 
     cleaned = 0
     skipped = 0
+    failed = 0
 
     for folder in folders:
         name = folder.folder_name
@@ -535,15 +655,34 @@ def cmd_clean(
                     skipped += 1
                     continue
 
-        # Do the permanent delete
-        if store.remove_folder(name):
+        # Do the permanent delete -- this exact folder, not a name search
+        if store.remove_folder(name, folder.folder_path):
             print(f"  Deleted: {name}")
             cleaned += 1
         else:
             print(f"  ERROR: Failed to delete {name}", file=sys.stderr)
+            failed += 1
 
-    print(f"\n  Cleaned: {cleaned}, Skipped: {skipped}")
-    return 0
+    print(f"\n  Cleaned: {cleaned}, Skipped: {skipped}"
+          + (f", Failed: {failed}" if failed else ""))
+    return _clean_exit_code(cleaned, skipped, failed)
+
+
+def _clean_exit_code(cleaned: int, skipped: int, failed: int) -> int:
+    """Graded exit code for ``clean`` (same table as the delete action).
+
+    0 everything asked for was cleaned; 1 a delete failed and nothing else
+    explains it; 3 nothing was cleaned because every entry was refused or
+    declined; 4 some cleaned and some not.
+    """
+    from ._verdict import EXIT_OK, EXIT_ERROR, EXIT_REFUSED, EXIT_PARTIAL
+    if not skipped and not failed:
+        return EXIT_OK
+    if cleaned:
+        return EXIT_PARTIAL
+    if failed:
+        return EXIT_ERROR
+    return EXIT_REFUSED
 
 
 # -- Status --
@@ -553,7 +692,20 @@ def cmd_status(store: TrashStore) -> int:
     """Show trash store statistics."""
     stats = store.get_stats()
 
-    print(f"\n  Trash store: {stats.store_path}")
+    # The totals cover every store; name each one that holds something, not
+    # only the central default (which is often the emptiest).
+    all_folders_for_label = store.list_entries()
+    per_store: Dict[str, int] = {}
+    for f in all_folders_for_label:
+        key = os.path.dirname(f.folder_path)
+        per_store[key] = per_store.get(key, 0) + 1
+    if len(per_store) <= 1:
+        only = next(iter(per_store), stats.store_path)
+        print(f"\n  Trash store: {only}")
+    else:
+        print(f"\n  Trash stores ({len(per_store)}):")
+        for path in sorted(per_store):
+            print(f"    {path}  ({per_store[path]} folder(s))")
     print(f"  Folders: {stats.total_folders}")
     print(f"  Entries: {stats.total_entries}")
     print(f"  Total size: {_format_size(stats.total_size_bytes)}")
@@ -643,16 +795,15 @@ def _print_metadata_summary(entry: TrashEntry) -> None:
 
 
 def _create_junction(link_path: str, target_path: str) -> None:
-    """Create a Windows junction point using PowerShell."""
-    import subprocess
-    result = subprocess.run(
-        [
-            "powershell", "-Command",
-            f"New-Item -ItemType Junction -Path '{link_path}' -Target '{target_path}'"
-        ],
-        capture_output=True, text=True,
-    )
-    if result.returncode != 0:
+    """Re-create a Windows junction.
+
+    Uses filekit's ``create_junction``, which quotes the paths for
+    PowerShell (a ``'`` in a path used to break the command, or run part of
+    the path as code) and runs with ``-NoProfile -NonInteractive`` and
+    ``ErrorActionPreference=Stop``.
+    """
+    from dazzle_filekit.links import create_junction
+    if not create_junction(target_path, link_path):
         raise OSError(
-            f"Failed to create junction: {result.stderr.strip()}"
+            f"Failed to create junction {link_path} -> {target_path}"
         )

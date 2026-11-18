@@ -78,8 +78,12 @@ class VolumeTrashInfo:
 
 
 def get_volume_info(path: str) -> VolumeInfo:
-    """Get volume information for the filesystem containing path."""
-    st = os.stat(path)
+    """Get volume information for the filesystem containing path.
+
+    Uses ``lstat``: for a junction or symlink the question is which volume
+    the LINK is on, not where it points. ``stat`` would follow it.
+    """
+    st = os.lstat(path)
     device_id = st.st_dev
 
     if sys.platform == "win32":
@@ -227,25 +231,46 @@ def _is_network_mount_unix(mount_point: str) -> bool:
 # -- Per-Volume Trash Path Resolution --
 
 
+def is_usable_store_root(path: str) -> bool:
+    """True if ``path`` can safely be the root a trash store is made under.
+
+    A store path must be absolute ON THE RUNNING PLATFORM. On POSIX a
+    Windows-style path (``C:\\Users\\me``, ``C:/``) is not absolute: it is a
+    relative name, and ``os.makedirs`` would quietly create a folder
+    literally called ``C:`` under the current directory. That is how stray
+    ``C:/.safedel-trash-<uid>`` folders appeared inside source checkouts
+    (2026-11-09, and one dated 2026-04-10).
+    """
+    if not path or not os.path.isabs(path):
+        return False
+    if os.name != "nt" and len(path) >= 2 and path[1] == ":" and path[0].isalpha():
+        return False
+    return True
+
+
 def get_per_volume_trash_path(
-    volume: VolumeInfo, username: Optional[str] = None
+    volume: VolumeInfo, username: Optional[str] = None, create: bool = True
 ) -> Optional[str]:
     """Determine the per-volume trash path for a given volume.
 
     Returns None if per-volume trash is not appropriate (network drives,
-    read-only volumes, subst drives).
+    read-only volumes, subst drives, or a mount point that is not an
+    absolute path on this platform).
+
+    ``create=False`` only computes the path: nothing is created, so a
+    preview can ask where a batch would go without changing the disk.
     """
     if volume.is_network or volume.is_readonly or volume.is_subst:
         return None
 
     if sys.platform == "win32":
-        return _per_volume_path_windows(volume, username)
+        return _per_volume_path_windows(volume, username, create=create)
     else:
-        return _per_volume_path_unix(volume)
+        return _per_volume_path_unix(volume, create=create)
 
 
 def _per_volume_path_windows(
-    volume: VolumeInfo, username: Optional[str] = None
+    volume: VolumeInfo, username: Optional[str] = None, create: bool = True
 ) -> Optional[str]:
     """Per-volume trash: <drive>\\Users\\<username>\\.safedel-trash\\"""
     if not username:
@@ -257,6 +282,8 @@ def _per_volume_path_windows(
                 return None
 
     drive = volume.mount_point.rstrip(os.sep)
+    if not os.path.splitdrive(drive)[0]:
+        return None  # not a drive root: never build a store on a relative name
     user_dir = os.path.join(drive, os.sep, "Users", username)
 
     if os.path.isdir(user_dir):
@@ -264,6 +291,8 @@ def _per_volume_path_windows(
 
     # Fallback: try root of drive
     root_path = os.path.join(drive, os.sep, ".safedel-trash")
+    if not create:
+        return root_path if os.access(drive + os.sep, os.W_OK) else None
     try:
         os.makedirs(root_path, exist_ok=True)
         return root_path
@@ -271,11 +300,17 @@ def _per_volume_path_windows(
         return None
 
 
-def _per_volume_path_unix(volume: VolumeInfo) -> Optional[str]:
+def _per_volume_path_unix(volume: VolumeInfo, create: bool = True) -> Optional[str]:
     """Per-volume trash: <mountpoint>/.safedel-trash-<uid>/"""
+    if not is_usable_store_root(volume.mount_point):
+        return None
     uid = os.getuid()
     trash_dir = os.path.join(volume.mount_point, f".safedel-trash-{uid}")
 
+    if not create:
+        if os.path.isdir(trash_dir) or os.access(volume.mount_point, os.W_OK):
+            return trash_dir
+        return None
     try:
         if not os.path.exists(trash_dir):
             os.makedirs(trash_dir, mode=0o700)
@@ -284,10 +319,27 @@ def _per_volume_path_unix(volume: VolumeInfo) -> Optional[str]:
         return None
 
 
+def _nearest_existing(path: str) -> str:
+    """``path`` itself if it exists, else its nearest existing ancestor."""
+    current = os.path.abspath(path)
+    while not os.path.lexists(current):
+        parent = os.path.dirname(current)
+        if parent == current:
+            break
+        current = parent
+    return current
+
+
 def is_same_volume(path1: str, path2: str) -> bool:
-    """Check if two paths are on the same volume."""
+    """Check if two paths are on the same volume.
+
+    ``path1`` (the item) is examined with ``lstat`` so a link is placed on
+    the volume the link itself is on. ``path2`` (a store) may not exist yet;
+    its nearest existing ancestor stands in for it.
+    """
     try:
-        return os.stat(path1).st_dev == os.stat(path2).st_dev
+        return (os.lstat(path1).st_dev
+                == os.stat(_nearest_existing(path2)).st_dev)
     except OSError:
         return False
 
@@ -415,12 +467,17 @@ def get_all_trash_paths(
 
 
 def resolve_trash_store(
-    source_path: str, central_path: str
+    source_path: str, central_path: str, create: bool = True
 ) -> Tuple[str, bool]:
     """Determine which trash store to use for a given source path.
 
     Tries per-volume trash first (for zero-copy rename). Falls back to
     central store if per-volume is not available.
+
+    ``create=False`` decides without touching the disk: no store folder is
+    made and the volume registry is not written. Planning uses it, so a
+    preview changes nothing; ``commit_trash_store`` then does the creating
+    for a real run.
 
     Returns:
         (trash_path, is_per_volume) tuple.
@@ -430,17 +487,34 @@ def resolve_trash_store(
     except OSError:
         return central_path, False
 
-    per_volume_path = get_per_volume_trash_path(volume)
+    per_volume_path = get_per_volume_trash_path(volume, create=create)
     if per_volume_path:
         try:
-            os.makedirs(per_volume_path, exist_ok=True)
+            if create:
+                os.makedirs(per_volume_path, exist_ok=True)
             if is_same_volume(source_path, per_volume_path):
-                register_volume(volume, per_volume_path)
+                if create:
+                    register_volume(volume, per_volume_path)
                 return per_volume_path, True
         except OSError:
             pass
 
     return central_path, False
+
+
+def commit_trash_store(source_path: str, store_path: str, is_per_volume: bool
+                       ) -> None:
+    """Create a store chosen by ``resolve_trash_store(create=False)`` and,
+    for a per-volume store, record it in the volume registry.
+
+    ``source_path`` must still exist (it names the volume to register).
+    """
+    os.makedirs(store_path, exist_ok=True)
+    if is_per_volume:
+        try:
+            register_volume(get_volume_info(source_path), store_path)
+        except OSError:
+            pass
 
 
 def _now_iso() -> str:

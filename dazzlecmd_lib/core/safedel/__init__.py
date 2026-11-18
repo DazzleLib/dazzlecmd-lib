@@ -53,12 +53,56 @@ from dazzlecmd_lib.core.safedel._recover import (
     cmd_status,
     recover_folder,
 )
+from dazzlecmd_lib.core.safedel._store import TrashPlan, PlannedItem
+from dazzlecmd_lib.core.safedel._console import stdin_is_interactive
+from dazzlecmd_lib.core.safedel._scopes import (
+    SCOPES,
+    ScopeError,
+    parse_scopes,
+    split_yes,
+)
+from dazzlecmd_lib.core.safedel._verdict import (
+    EXIT_OK,
+    EXIT_ERROR,
+    EXIT_USAGE,
+    EXIT_REFUSED,
+    EXIT_PARTIAL,
+    EXIT_BLOCKED,
+    EXIT_POSTCONDITION,
+    EXIT_CODES,
+    verdict_line,
+    result_verdict,
+)
+from dazzlecmd_lib.core.safedel._zones import copy_first_settings
+from dazzlecmd_lib.core.safedel._copyfirst import parse_size, format_bytes
+from dazzlecmd_lib.core.safedel._junctions import links_pointing_at
 
 __all__ = [
     "TrashStore",
     "TrashEntry",
     "TrashFolder",
     "TrashResult",
+    "TrashPlan",
+    "PlannedItem",
+    "stdin_is_interactive",
+    "SCOPES",
+    "ScopeError",
+    "parse_scopes",
+    "split_yes",
+    "EXIT_OK",
+    "EXIT_ERROR",
+    "EXIT_USAGE",
+    "EXIT_REFUSED",
+    "EXIT_PARTIAL",
+    "EXIT_BLOCKED",
+    "EXIT_POSTCONDITION",
+    "EXIT_CODES",
+    "verdict_line",
+    "result_verdict",
+    "copy_first_settings",
+    "parse_size",
+    "format_bytes",
+    "links_pointing_at",
     "StoreStats",
     "stage_to_trash",
     "safe_delete",
@@ -76,4 +120,9 @@ __all__ = [
 
 # Bump when the public surface changes in a way consumers must adapt to.
 # v2: added `recover_folder` (exact-name programmatic recovery, #37).
-__api_version__ = "2"
+# v3: `TrashStore.plan()` / `execute()`; `TrashResult.refused`, `staged_count`,
+#     `not_staged_count`, `postcondition_failures`; a batch with two same-named
+#     items, or one that is a known link's destination, is REFUSED WHOLE
+#     (`refused=True`, nothing moved) where v2 staged part of it; graded exit
+#     codes and the verdict line; scoped `--yes`; console detection.
+__api_version__ = "3"

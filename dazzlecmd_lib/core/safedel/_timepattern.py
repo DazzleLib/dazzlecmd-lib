@@ -72,6 +72,29 @@ def generate_unique_folder_name(
     return candidate
 
 
+def claim_unique_folder(
+    trash_dir: str, dt: Optional[datetime.datetime] = None
+) -> str:
+    """Create a new, uniquely named batch folder and return its name.
+
+    ``generate_unique_folder_name`` only LOOKS for a free name; two runs in
+    the same second can both find the same one and then share a folder, the
+    second manifest replacing the first. Here the name is claimed by
+    ``os.mkdir`` itself, which fails if the folder exists -- so exactly one
+    run gets each name.
+    """
+    base = generate_folder_name(dt)
+    candidate = base
+    suffix = 1
+    while True:
+        try:
+            os.mkdir(os.path.join(trash_dir, candidate))
+            return candidate
+        except FileExistsError:
+            candidate = f"{base}_{suffix:03d}"
+            suffix += 1
+
+
 # -- Age filter parsing --
 
 _AGE_RE = re.compile(r"^([<>]=?)\s*(\d+)\s*([dhms])$")
@@ -146,7 +169,19 @@ def time_pattern_to_glob(args: List[str]) -> Optional[str]:
     if not args:
         return "*"  # Match all
 
+    # A single quoted "date time" argument ("2026-11-17 17:24*") is the
+    # two-argument form typed as one; split it rather than keep the space.
+    if len(args) == 1 and len(args[0].split()) == 2:
+        return time_pattern_to_glob(args[0].split())
+
     first = args[0].lower().strip()
+
+    # A batch folder name exactly as `list` prints it (2026-11-17__17-24-12,
+    # optionally with a _NNN collision suffix) or a glob over folder names
+    # (2026-11-17__17-*) is already in folder-name form: use it as-is.
+    # Before this, a date-led argument always got "__*" appended.
+    if re.match(r"^\d{4}-\d{2}-\d{2}__", first):
+        return args[0].strip()
 
     # Special token: "last" means most recent -- handled by caller
     if first == "last":

@@ -1176,9 +1176,11 @@ def _remove_tool_dir(tool_dir, *, tool_name, command, force, immediate=False):
 
     from dazzlecmd_lib.core.safedel import TrashStore
     folder_name = None
+    refused = False
     try:
         result = TrashStore().trash([tool_dir])
         ok = result.success
+        refused = bool(getattr(result, "refused", False))
         folder_name = result.folder_name if ok else None
         errors = "" if ok else "; ".join(result.errors)
     except Exception as exc:  # noqa: BLE001
@@ -1186,8 +1188,19 @@ def _remove_tool_dir(tool_dir, *, tool_name, command, force, immediate=False):
 
     if ok:
         print(f"  Backed up to trash (recover with: {command} safedel "
-              "recover last)")
+              f"recover {folder_name})")
         return 0, folder_name
+
+    if refused:
+        # A refusal is safedel saying the delete itself is unsafe (for
+        # example, a junction elsewhere points at this folder). --force
+        # overrides a FAILED backup; it must never override that judgement
+        # by deleting the folder outright.
+        print(f"Error: safedel refused to delete {tool_dir}: "
+              f"{errors or 'refused'}", file=sys.stderr)
+        print("  Swap aborted (nothing deleted). --force does not override a "
+              "refusal; resolve the reason above first.", file=sys.stderr)
+        return 1, None
 
     print(f"Error: recoverable delete of {tool_dir} failed: "
           f"{errors or 'unknown error'}", file=sys.stderr)

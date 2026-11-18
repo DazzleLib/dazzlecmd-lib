@@ -15,10 +15,16 @@ import dazzlecmd_lib.core.safedel as sd
 
 
 def test_public_surface():
-    assert sd.__api_version__ == "2"  # v2 added recover_folder (#37)
+    # v2 added recover_folder (#37); v3 added plan()/execute(), whole-batch
+    # refusals (TrashResult.refused), graded verdicts and scoped --yes.
+    assert sd.__api_version__ == "3"
     for name in ("TrashStore", "TrashEntry", "TrashResult", "StoreStats",
                  "stage_to_trash", "safe_delete", "get_trash_dir", "classify",
-                 "cmd_recover", "cmd_list", "recover_folder"):
+                 "cmd_recover", "cmd_list", "recover_folder",
+                 "TrashPlan", "PlannedItem", "stdin_is_interactive",
+                 "split_yes", "ScopeError", "SCOPES", "verdict_line",
+                 "result_verdict", "EXIT_REFUSED", "EXIT_POSTCONDITION",
+                 "copy_first_settings", "links_pointing_at"):
         assert hasattr(sd, name), name
 
 

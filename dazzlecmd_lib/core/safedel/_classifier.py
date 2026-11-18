@@ -25,7 +25,6 @@ from typing import Any, Dict, List, Optional
 # hack -- a proper package import now that both live in the lib.
 from dazzlecmd_lib.core.links import (
     detect_link,
-    canonicalize_path,
     LinkInfo,
     LINK_SYMLINK,
     LINK_JUNCTION,

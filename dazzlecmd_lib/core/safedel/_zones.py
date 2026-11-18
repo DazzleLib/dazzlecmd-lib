@@ -71,8 +71,51 @@ DEFAULT_CONFIG = {
         "zone_a_hours": 6,
         "zone_b_hours": 48,
         "zone_c_days": 30,
-    }
+    },
+    # Copy-first ("training wheels"): a hash-verified copy made before an
+    # item is moved into the trash.
+    #   mode: "auto"   -- on when nobody is at the keyboard (an agent or a
+    #                     script), off at an interactive console
+    #         "always" -- on for every delete
+    #         "off"    -- never, unless --yes copy-first asks for it
+    #   max_bytes: a batch larger than this is refused while copy-first is
+    #              on (override per call: --yes no-copy-first, or
+    #              --copy-first-max <size>)
+    "copy_first": {
+        "mode": "auto",
+        "max_bytes": 10 * 1024 * 1024,
+    },
 }
+
+
+def copy_first_settings(config: Optional[Dict[str, Any]] = None,
+                        env: Optional[Dict[str, str]] = None
+                        ) -> Tuple[str, int]:
+    """(mode, max_bytes) for copy-first: environment, then config, then
+    defaults. ``SAFEDEL_COPY_FIRST`` (auto|always|off) and
+    ``SAFEDEL_COPY_FIRST_MAX`` (a size such as ``10MB``) override the config
+    file. An unreadable value falls back to the default, never to "off"."""
+    if config is None:
+        config = load_config()
+    if env is None:
+        env = os.environ
+    section = config.get("copy_first") or {}
+    default = DEFAULT_CONFIG["copy_first"]
+
+    mode = str(env.get("SAFEDEL_COPY_FIRST") or section.get("mode")
+               or default["mode"]).strip().lower()
+    if mode not in ("auto", "always", "off"):
+        mode = default["mode"]
+
+    max_bytes = default["max_bytes"]
+    raw = env.get("SAFEDEL_COPY_FIRST_MAX") or section.get("max_bytes")
+    if raw is not None:
+        try:
+            from ._copyfirst import parse_size
+            max_bytes = parse_size(raw)
+        except (ValueError, TypeError):
+            max_bytes = default["max_bytes"]
+    return mode, max_bytes
 
 
 def get_config_path() -> str:
@@ -273,7 +316,10 @@ def check_clean_permission(
         reason is an error message if not allowed.
     """
     if is_tty is None:
-        is_tty = hasattr(sys.stdin, "isatty") and sys.stdin.isatty()
+        # "Can a person answer a prompt?", not isatty(): on Windows the NUL
+        # device is a character device and isatty() is True for it.
+        from ._console import stdin_is_interactive
+        is_tty = stdin_is_interactive()
 
     if zone.is_blocked:
         return False, (

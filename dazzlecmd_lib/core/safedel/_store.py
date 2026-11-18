@@ -33,10 +33,46 @@ from ._platform import (
 )
 from ._timepattern import (
     generate_unique_folder_name,
+    claim_unique_folder,
     parse_folder_datetime,
     match_trash_folders,
 )
-from ._volumes import resolve_trash_store, get_all_trash_paths
+from ._volumes import (
+    resolve_trash_store,
+    commit_trash_store,
+    get_all_trash_paths,
+    is_usable_store_root,
+    is_same_volume,
+    _nearest_existing,
+)
+from ._copyfirst import (
+    DEFAULT_MAX_BYTES,
+    copy_first as _make_copy_first,
+    _discard as _discard_copy,
+    format_bytes,
+    survey,
+)
+from ._junctions import links_pointing_at
+from ._scopes import DELETE_THROUGH_JUNCTION, DELETE_THROUGH_SYMLINK
+
+_LINK_TYPES = (
+    FileType.SYMLINK_FILE, FileType.SYMLINK_DIR,
+    FileType.JUNCTION, FileType.BROKEN_LINK,
+)
+_SYMLINK_TYPES = (FileType.SYMLINK_FILE, FileType.SYMLINK_DIR)
+
+
+def _name_key(name: str) -> str:
+    """Comparison key for "would these two names collide in one folder?".
+
+    Unicode-normalised and case-folded on EVERY platform: NTFS, DrvFs and
+    default macOS volumes treat ``Foo`` and ``foo`` (and composed and
+    decomposed forms of one character) as the same name. Refusing a batch
+    that a case-sensitive filesystem could have held costs one more call;
+    letting one through that the filesystem then merges costs a file.
+    """
+    import unicodedata
+    return unicodedata.normalize("NFC", name).casefold()
 
 # Metadata preservation (ACLs/ADS/timestamps/xattrs) comes from filekit, the
 # canonical home of that code (preservelib was a re-export shim to it).
@@ -102,6 +138,81 @@ class TrashEntry:
     # Populated when operating on WSL DrvFs paths so recovery works from
     # either runtime.
     original_path_alt: Optional[str] = None
+    # Copy-first record: where the hash-verified second copy is, and what was
+    # verified. None when no copy was made.
+    copy_first: Optional[Dict[str, Any]] = None
+
+
+@dataclass
+class PlannedItem:
+    """One thing a batch will do, decided before anything moves.
+
+    The preview prints these and the real run performs exactly these, so the
+    two cannot drift apart.
+    """
+    path: str
+    classification: Classification
+    action: str                       # "rename" (into the trash) | "remove-link"
+    staged_name: Optional[str]        # name it takes under content/; None if nothing is placed there
+    copy_first: bool = False          # a verified copy is made before the move
+    metadata_only: bool = False       # a link recorded in the manifest only
+    via_link: Optional[str] = None    # this item is what that link points at (delete-through)
+    survey: Dict[str, Any] = field(default_factory=dict)
+    link_target_entries: Optional[int] = None   # a link's target: entry count at plan time
+
+
+@dataclass
+class TrashPlan:
+    """What ``TrashStore.execute`` will do. ``refusals`` non-empty means
+    nothing may move."""
+    items: List[PlannedItem] = field(default_factory=list)
+    missing: List[str] = field(default_factory=list)
+    refusals: List[str] = field(default_factory=list)
+    warnings: List[str] = field(default_factory=list)
+    store_path: str = ""
+    is_per_volume: bool = False
+    scopes: tuple = ()
+    copy_first: bool = False
+    copy_first_max: int = DEFAULT_MAX_BYTES
+    copy_first_bytes: int = 0
+
+    @property
+    def refused(self) -> bool:
+        return bool(self.refusals)
+
+    def describe(self) -> List[str]:
+        """The preview: one block of lines per item, then where it all goes."""
+        lines: List[str] = []
+        for item in self.items:
+            c = item.classification
+            lines.append(f"  {item.path}")
+            kind = c.file_type.value
+            if c.link_target:
+                kind += f" -> {c.link_target}"
+            lines.append(f"    kind:  {kind}")
+            if item.action == "remove-link":
+                what = "remove the link only; what it points at is not touched"
+                if any(o.via_link == item.path for o in self.items):
+                    what = ("remove the link; what it points at is ALSO staged "
+                            "(delete-through)")
+                lines.append(f"    does:  {what}")
+            else:
+                does = "move into the trash"
+                if item.copy_first:
+                    does = "copy and verify (SHA-256), then move into the trash"
+                if item.via_link:
+                    does += f" -- reached through the link {item.via_link}"
+                lines.append(f"    does:  {does}")
+                if item.survey:
+                    from ._copyfirst import format_survey
+                    lines.append("    holds: "
+                                 + format_survey(item.survey, c.is_dir))
+        for path in self.missing:
+            lines.append(f"  {path}")
+            lines.append("    does:  nothing -- this path does not exist")
+        if self.store_path:
+            lines.append(f"  trash store: {self.store_path}")
+        return lines
 
 
 @dataclass
@@ -112,6 +223,19 @@ class TrashFolder:
     deleted_at: datetime.datetime
     entries: List[TrashEntry] = field(default_factory=list)
     manifest: Optional[Dict[str, Any]] = None
+    # Why the manifest could not be read ("missing", or the parse error).
+    # A folder in this state is NOT an empty batch: its content/ may hold the
+    # only copy of something, with nothing saying where it came from.
+    manifest_error: Optional[str] = None
+
+    @property
+    def state(self) -> str:
+        """``complete``, ``staging`` (a run that did not finish), or
+        ``unknown`` (no readable manifest). Batches written before the state
+        field existed are ``complete``."""
+        if self.manifest is None:
+            return "unknown"
+        return self.manifest.get("state", "complete")
 
     @property
     def age(self) -> datetime.timedelta:
@@ -129,6 +253,14 @@ class TrashResult:
     delete_results: List[DeleteResult] = field(default_factory=list)
     errors: List[str] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)
+    # True when the plan was refused: nothing moved and no batch folder exists.
+    refused: bool = False
+    staged_count: int = 0
+    not_staged_count: int = 0
+    # Checks made AFTER the moves: an original that still exists, a staged
+    # item that is not where it should be, a link's target that changed.
+    postcondition_failures: List[str] = field(default_factory=list)
+    plan: Optional[TrashPlan] = None
 
 
 @dataclass
@@ -145,153 +277,422 @@ class StoreStats:
 class TrashStore:
     """Manages the safedel trash store."""
 
-    def __init__(self, store_path: Optional[str] = None, registry_path: Optional[str] = None):
+    def __init__(self, store_path: Optional[str] = None,
+                 registry_path: Optional[str] = None,
+                 junction_registry_path: Optional[str] = None):
         self.store_path = store_path or get_trash_dir()
         self.registry_path = registry_path  # None = global default
+        # The junction registry (links recorded by the tools that create
+        # them). With an explicit registry_path -- test isolation -- nothing
+        # under the home folder is read unless a path is given here.
+        if junction_registry_path is None and registry_path is None:
+            junction_registry_path = os.path.join(
+                os.path.expanduser("~"), ".safedel", "junctions.json")
+        self.junction_registry_path = junction_registry_path
         self.platform_info = detect_platform()
 
     def ensure_store_exists(self):
         """Create the trash store directory if it doesn't exist."""
+        if not is_usable_store_root(self.store_path):
+            raise ValueError(
+                f"trash store path is not an absolute path on this platform: "
+                f"{self.store_path!r}"
+            )
         os.makedirs(self.store_path, exist_ok=True)
+
+    # -- plan, then execute --------------------------------------------------
+
+    def plan(
+        self,
+        paths: List[str],
+        *,
+        scopes=(),
+        copy_first: bool = False,
+        copy_first_max: Optional[int] = None,
+    ) -> TrashPlan:
+        """Decide everything a batch will do, and change nothing.
+
+        Classifies each path, expands delete-through items, runs every check
+        that can refuse the batch, chooses the store, and records what the
+        post-condition check will need. No folder is created, no registry is
+        written. The preview prints the result; ``execute`` performs exactly
+        it.
+
+        Refusals (any one means nothing moves):
+        - none of the given paths exists;
+        - two items would take the same name in the batch;
+        - an item is the destination of a known junction or directory
+          symlink, and the matching ``delete-through-*`` scope was not given;
+        - a ``delete-through-*`` scope does not match the link types given;
+        - copy-first is on and the batch is larger than its limit;
+        - the store path is not absolute on this platform.
+        """
+        scopes = tuple(scopes or ())
+        plan = TrashPlan(
+            scopes=scopes,
+            copy_first=bool(copy_first),
+            copy_first_max=(DEFAULT_MAX_BYTES if copy_first_max is None
+                            else int(copy_first_max)),
+            store_path=self.store_path,
+        )
+
+        classifications = [classify(p) for p in paths]
+        plan.missing = [c.path for c in classifications if not c.exists]
+        existing = [c for c in classifications if c.exists]
+        if not existing:
+            plan.refusals.append(
+                "nothing to delete: none of the given paths exists")
+            return plan
+
+        want_j = DELETE_THROUGH_JUNCTION in scopes
+        want_s = DELETE_THROUGH_SYMLINK in scopes
+        used_j = used_s = False
+
+        for c in existing:
+            is_j = c.file_type == FileType.JUNCTION
+            is_s = c.file_type in _SYMLINK_TYPES
+            if is_j and want_s and not want_j:
+                plan.refusals.append(
+                    f"{c.path} is a junction, but the scope given was "
+                    f"{DELETE_THROUGH_SYMLINK}; use {DELETE_THROUGH_JUNCTION} "
+                    f"to delete what a junction points at")
+                continue
+            if is_s and want_j and not want_s:
+                plan.refusals.append(
+                    f"{c.path} is a symlink, but the scope given was "
+                    f"{DELETE_THROUGH_JUNCTION}; use {DELETE_THROUGH_SYMLINK} "
+                    f"to delete what a symlink points at")
+                continue
+            if (is_j and want_j) or (is_s and want_s):
+                target = classify(c.link_target) if c.link_target else None
+                if target is None or not target.exists:
+                    plan.refusals.append(
+                        f"{c.path}: delete-through was asked for, but what the "
+                        f"link points at does not exist "
+                        f"({c.link_target or 'no target recorded'})")
+                    continue
+                if target.file_type in _LINK_TYPES:
+                    plan.refusals.append(
+                        f"{c.path} points at another link ({target.path}); "
+                        f"name the real folder or file directly")
+                    continue
+                plan.items.append(PlannedItem(
+                    path=target.path, classification=target, action="rename",
+                    staged_name=os.path.basename(target.path),
+                    via_link=c.path))
+                plan.items.append(PlannedItem(
+                    path=c.path, classification=c, action="remove-link",
+                    staged_name=None, metadata_only=True))
+                used_j = used_j or is_j
+                used_s = used_s or is_s
+                continue
+            plan.items.append(self._plan_item(c))
+
+        # Target-side defence: a real folder that a known link points at.
+        for item in plan.items:
+            c = item.classification
+            if (item.action != "rename" or item.via_link
+                    or c.file_type not in (FileType.REGULAR_DIR,
+                                           FileType.EMPTY_DIR)):
+                continue
+            hits = links_pointing_at(item.path, self.junction_registry_path)
+            if not hits:
+                continue
+            kinds = {h.link_type for h in hits}
+            allowed = all((k == "junction" and want_j)
+                          or (k == "symlink" and want_s) for k in kinds)
+            if allowed:
+                used_j = used_j or "junction" in kinds
+                used_s = used_s or "symlink" in kinds
+                continue
+            first = hits[0]
+            scope = (DELETE_THROUGH_JUNCTION if first.link_type == "junction"
+                     else DELETE_THROUGH_SYMLINK)
+            more = f" (and {len(hits) - 1} more)" if len(hits) > 1 else ""
+            plan.refusals.append(
+                f"{item.path} is what the {first.link_type} "
+                f"{first.link_path}{more} points at; deleting it removes the "
+                f"real data behind that link. To remove only the link, name "
+                f"the link itself. To delete this folder anyway, pass "
+                f"--yes {scope}")
+
+        if want_j and not used_j and not plan.refusals:
+            plan.refusals.append(
+                f"--yes {DELETE_THROUGH_JUNCTION} was given, but no path is a "
+                f"junction or a junction's destination")
+        if want_s and not used_s and not plan.refusals:
+            plan.refusals.append(
+                f"--yes {DELETE_THROUGH_SYMLINK} was given, but no path is a "
+                f"symlink or a symlink's destination")
+
+        # Two items that would land on one name under content/.
+        by_name: Dict[str, List[str]] = {}
+        for item in plan.items:
+            if item.staged_name:
+                by_name.setdefault(_name_key(item.staged_name), []).append(
+                    item.path)
+        clashes = {k: v for k, v in by_name.items() if len(v) > 1}
+        if clashes:
+            detail = "; ".join(
+                f"'{os.path.basename(v[0])}' ({', '.join(v)})"
+                for v in clashes.values())
+            plan.refusals.append(
+                f"two or more items share a name, and one batch holds each "
+                f"name once: {detail}. Nothing was moved; delete them in "
+                f"separate calls")
+
+        # What each item holds (for the preview and the copy-first limit),
+        # and, for a link, how many entries its target has right now.
+        for item in plan.items:
+            item.survey = survey(item.path)
+            c = item.classification
+            if (item.action == "remove-link" and c.link_target
+                    and not c.link_broken):
+                try:
+                    if os.path.isdir(c.link_target):
+                        item.link_target_entries = len(
+                            os.listdir(c.link_target))
+                except OSError:
+                    pass
+
+        # Copy-first: which items get the second copy, and is it too much?
+        if plan.copy_first:
+            for item in plan.items:
+                c = item.classification
+                if (item.action == "rename" and c.content_preservable
+                        and c.file_type != FileType.UNKNOWN):
+                    item.copy_first = True
+                    plan.copy_first_bytes += item.survey.get("bytes", 0)
+            if plan.copy_first_bytes > plan.copy_first_max:
+                plan.refusals.append(
+                    f"copy-first would copy "
+                    f"{format_bytes(plan.copy_first_bytes)}, over its limit "
+                    f"of {format_bytes(plan.copy_first_max)}. To stage "
+                    f"without the extra copy pass --yes no-copy-first; to "
+                    f"raise the limit pass --copy-first-max <size>")
+
+        # Where it goes. Per-volume first (a same-volume rename keeps every
+        # timestamp, ACL and stream); the central store otherwise. An explicit
+        # registry_path means the caller owns the store (test isolation).
+        first = plan.items[0].path if plan.items else existing[0].path
+        if self.registry_path is None:
+            plan.store_path, plan.is_per_volume = resolve_trash_store(
+                first, self.store_path, create=False)
+        if not is_usable_store_root(plan.store_path):
+            plan.refusals.append(
+                f"the trash store path is not an absolute path on this "
+                f"platform: {plan.store_path!r}")
+            return plan
+
+        self._plan_warnings(plan)
+        return plan
+
+    def _plan_item(self, c: Classification) -> PlannedItem:
+        """The planned act for one ordinary (not delete-through) item."""
+        name = os.path.basename(c.path)
+        if c.file_type == FileType.JUNCTION:
+            # a junction is recorded in the manifest; nothing lands in content/
+            return PlannedItem(path=c.path, classification=c,
+                               action="remove-link", staged_name=None,
+                               metadata_only=True)
+        if c.file_type in _LINK_TYPES:
+            # a symlink is recreated under content/, so it occupies its name
+            return PlannedItem(path=c.path, classification=c,
+                               action="remove-link", staged_name=name)
+        return PlannedItem(path=c.path, classification=c, action="rename",
+                           staged_name=name)
+
+    def _plan_warnings(self, plan: TrashPlan) -> None:
+        """Disk space, cross-device and alternate-stream warnings."""
+        movable = [i.path for i in plan.items
+                   if i.action == "rename"
+                   and i.classification.content_preservable]
+        if not movable:
+            return
+        total_size = sum(i.survey.get("bytes", 0) for i in plan.items
+                         if i.action == "rename")
+        store_probe = _nearest_existing(plan.store_path)
+        space_warning = check_disk_space(
+            store_probe, total_size + plan.copy_first_bytes)
+        if space_warning:
+            plan.warnings.append(space_warning)
+
+        cross_device = not is_same_volume(movable[0], plan.store_path)
+        one_gb = 1024 * 1024 * 1024
+        if cross_device and total_size > one_gb:
+            size_gb = total_size / one_gb
+            plan.warnings.append(
+                f"Cross-device staging: {size_gb:.1f}GB will be copied "
+                f"(not renamed). This may be slow and some metadata "
+                f"(creation time, ADS) will not be preserved in the copy. "
+                f"Original metadata is recorded in the manifest."
+            )
+        elif cross_device:
+            plan.warnings.append(
+                "Cross-device staging: the trash store is on another volume, "
+                "so items are copied and then removed (not renamed); creation "
+                "time and alternate streams are not carried by the copy.")
+
+        if cross_device and sys.platform == "win32":
+            ads_files = []
+            for p in movable:
+                try:
+                    streams = detect_alternate_streams(p)
+                    if streams:
+                        ads_files.append((p, streams))
+                except Exception:
+                    pass
+            if ads_files:
+                names = ", ".join(
+                    f"{os.path.basename(p)}({len(s)} streams)"
+                    for p, s in ads_files[:3]
+                )
+                if len(ads_files) > 3:
+                    names += f", and {len(ads_files) - 3} more"
+                plan.warnings.append(
+                    f"NTFS alternate data streams detected on "
+                    f"cross-device staging: {names}. These streams will "
+                    f"NOT be preserved in the copy (stream names are "
+                    f"recorded in the manifest)."
+                )
 
     def trash(
         self,
         paths: List[str],
         dry_run: bool = False,
+        *,
+        scopes=(),
+        copy_first: bool = False,
+        copy_first_max: Optional[int] = None,
     ) -> TrashResult:
         """Stage files for deletion and remove originals.
 
-        This is the main entry point for the delete operation:
-        1. Classify each path
-        2. Create timestamped trash folder
-        3. Collect metadata for each path
-        4. Stage files to trash (rename or copy)
-        5. Build and save manifest
-        6. Delete originals
-        7. Return report
+        ``plan()`` followed by ``execute()``. With ``dry_run`` the plan is
+        returned inside the result and nothing is touched. A refused plan
+        returns ``success=False, refused=True`` with the reasons in
+        ``errors``, and no batch folder exists.
 
         Args:
             paths: list of filesystem paths to delete
-            dry_run: if True, classify and report but don't touch files
+            dry_run: if True, plan and report but don't touch files
+            scopes: ``--yes`` scopes in force (see ``_scopes``)
+            copy_first: make a hash-verified copy of each item before moving
+            copy_first_max: byte limit for that copy (default 10 MB)
 
         Returns:
             TrashResult with full details of what happened
         """
-        self.ensure_store_exists()
-
-        # Step 1: Classify all paths
-        classifications = []
-        for path in paths:
-            c = classify(path)
-            classifications.append(c)
-
-        # Resolve trash store: try per-volume for zero-copy rename,
-        # fall back to central store.
-        # Skip per-volume routing when registry_path is explicitly set
-        # (test isolation -- tests provide their own store).
-        existing = [c for c in classifications if c.exists]
-        if existing and self.registry_path is None:
-            effective_store, is_per_volume = resolve_trash_store(
-                existing[0].path, self.store_path
-            )
-        else:
-            effective_store, is_per_volume = self.store_path, False
-
-        os.makedirs(effective_store, exist_ok=True)
-
-        # Generate folder name in the chosen store
-        folder_name = generate_unique_folder_name(effective_store)
-        folder_path = os.path.join(effective_store, folder_name)
-        content_dir = os.path.join(folder_path, "content")
-
+        plan = self.plan(paths, scopes=scopes, copy_first=copy_first,
+                         copy_first_max=copy_first_max)
         if dry_run:
-            entries = []
-            for c in classifications:
-                entry = self._build_entry(c, content_dir, collect_meta=False)
-                entries.append(entry)
             return TrashResult(
-                success=True,
-                folder_name=folder_name,
-                folder_path=folder_path,
-                entries=entries,
-                warnings=["DRY RUN: No files were modified."],
+                success=not plan.refused,
+                refused=plan.refused,
+                folder_name="",
+                folder_path="",
+                entries=[self._build_entry(i.classification, "", False)
+                         for i in plan.items],
+                errors=list(plan.refusals),
+                warnings=list(plan.warnings)
+                + ["DRY RUN: No files were modified."],
+                not_staged_count=len(plan.items) + len(plan.missing),
+                plan=plan,
+            )
+        return self.execute(plan)
+
+    def execute(self, plan: TrashPlan) -> TrashResult:
+        """Perform a plan: create the batch, move each item, check the result.
+
+        The manifest is written BEFORE anything moves (``state: staging``)
+        and rewritten after each item, so a run that is interrupted leaves a
+        manifest that maps every item already moved back to where it came
+        from. It is marked ``complete`` at the end.
+        """
+        if plan.refused:
+            return TrashResult(
+                success=False, refused=True, folder_name="", folder_path="",
+                errors=list(plan.refusals), warnings=list(plan.warnings),
+                not_staged_count=len(plan.items) + len(plan.missing),
+                plan=plan,
             )
 
-        # Step 2: Create trash folder
+        if self.registry_path is None:
+            commit_trash_store(plan.items[0].path, plan.store_path,
+                               plan.is_per_volume)
+        else:
+            os.makedirs(plan.store_path, exist_ok=True)
+
+        folder_name = claim_unique_folder(plan.store_path)
+        folder_path = os.path.join(plan.store_path, folder_name)
+        content_dir = os.path.join(folder_path, "content")
         os.makedirs(content_dir, exist_ok=True)
+        manifest_path = os.path.join(folder_path, "manifest.json")
 
-        # Step 3-6: Process each path
-        entries = []
-        staging_results = []
-        delete_results = []
-        errors = []
-        warnings = []
+        entries: List[TrashEntry] = []
+        staging_results: List[StagingResult] = []
+        delete_results: List[DeleteResult] = []
+        errors: List[str] = []
+        warnings: List[str] = list(plan.warnings)
+        staged: List[PlannedItem] = []
+        not_staged = 0
 
-        # Pre-flight: calculate total size and check disk space
-        preservable_paths = [
-            c.path for c in classifications
-            if c.exists and c.content_preservable
-        ]
-        if preservable_paths:
-            total_size = calculate_size(preservable_paths)
-            space_warning = check_disk_space(self.store_path, total_size)
-            if space_warning:
-                warnings.append(space_warning)
+        for path in plan.missing:
+            errors.append(f"Skipping non-existent path: {path}")
+            not_staged += 1
 
-            # Cross-device detection for warning triggers
-            cross_device = not is_same_device(
-                preservable_paths[0], effective_store
-            )
-            one_gb = 1024 * 1024 * 1024
-            if cross_device and total_size > one_gb:
-                size_gb = total_size / one_gb
-                warnings.append(
-                    f"Cross-device staging: {size_gb:.1f}GB will be copied "
-                    f"(not renamed). This may be slow and some metadata "
-                    f"(creation time, ADS) will not be preserved in the copy. "
-                    f"Original metadata is recorded in the manifest."
-                )
+        def save(state: str) -> None:
+            manifest = self._build_manifest(folder_name, entries)
+            manifest["state"] = state
+            manifest["scopes"] = list(plan.scopes)
+            self._save_manifest(manifest, manifest_path)
 
-            # NTFS ADS warning: if cross-device AND files have significant
-            # alternate data streams, the streams will be lost in the copy.
-            if cross_device and sys.platform == "win32":
-                ads_files = []
-                for p in preservable_paths:
-                    try:
-                        streams = detect_alternate_streams(p)
-                        if streams:
-                            ads_files.append((p, streams))
-                    except Exception:
-                        pass
-                if ads_files:
-                    names = ", ".join(
-                        f"{os.path.basename(p)}({len(s)} streams)"
-                        for p, s in ads_files[:3]
-                    )
-                    if len(ads_files) > 3:
-                        names += f", and {len(ads_files) - 3} more"
-                    warnings.append(
-                        f"NTFS alternate data streams detected on "
-                        f"cross-device staging: {names}. These streams will "
-                        f"NOT be preserved in the copy (stream names are "
-                        f"recorded in the manifest)."
-                    )
+        save("staging")
 
-        for c in classifications:
-            if not c.exists:
-                errors.append(f"Skipping non-existent path: {c.path}")
-                continue
+        for item in plan.items:
+            c = item.classification
 
             # Collect metadata before any changes
             entry = self._build_entry(c, content_dir, collect_meta=True)
             entries.append(entry)
 
+            copy_dest = None
+            if item.copy_first and item.staged_name:
+                copy_dest = os.path.join(folder_path, "copy-first",
+                                         item.staged_name)
+                try:
+                    record = _make_copy_first(item.path, copy_dest, c.is_dir)
+                except OSError as e:
+                    errors.append(
+                        f"copy-first failed for {item.path}: {e}; "
+                        f"left in place")
+                    not_staged += 1
+                    save("staging")
+                    continue
+                record["path"] = "copy-first/" + item.staged_name
+                entry.copy_first = record
+
             # Stage to trash
-            sr = stage_to_trash(c.path, content_dir, c)
+            if item.metadata_only and c.file_type != FileType.JUNCTION:
+                # delete-through: the link is recorded, not recreated (its
+                # target is in this same batch under the same name)
+                sr = StagingResult(
+                    success=True, source_path=c.path,
+                    dest_path=os.path.join(content_dir,
+                                           os.path.basename(c.path)),
+                    method="metadata_only")
+            else:
+                sr = stage_to_trash(c.path, content_dir, c)
             staging_results.append(sr)
 
             if not sr.success:
                 errors.append(f"Failed to stage {c.path}: {sr.error}")
+                not_staged += 1
+                if copy_dest:
+                    # the original never moved; the copy would be a
+                    # second, unlisted copy of something still in place
+                    _discard_copy(copy_dest)
+                    entry.copy_first = None
+                save("staging")
                 continue
 
             if sr.warnings:
@@ -303,12 +704,14 @@ class TrashStore:
                     "content", os.path.basename(c.path)
                 )
 
+            item_ok = True
             # Delete original (only if staging used copy, not rename)
             if sr.method == "copy":
                 dr = safe_delete(c.path, c)
                 delete_results.append(dr)
                 if not dr.success:
                     errors.append(f"Failed to delete {c.path}: {dr.error}")
+                    item_ok = False
                 if dr.warnings:
                     warnings.extend(dr.warnings)
             elif sr.method == "rename":
@@ -322,17 +725,21 @@ class TrashStore:
                 delete_results.append(dr)
                 if not dr.success:
                     errors.append(f"Failed to remove link {c.path}: {dr.error}")
+                    item_ok = False
                 if dr.warnings:
                     warnings.extend(dr.warnings)
 
-        # Step 5: Save manifest
-        manifest = self._build_manifest(folder_name, entries)
-        manifest_path = os.path.join(folder_path, "manifest.json")
-        self._save_manifest(manifest, manifest_path)
+            if item_ok:
+                staged.append(item)
+            else:
+                not_staged += 1
+            save("staging")
 
-        all_success = len(errors) == 0
+        post = self._check_postconditions(plan, staged, folder_path)
+        save("complete")
+
         return TrashResult(
-            success=all_success,
+            success=not errors and not post,
             folder_name=folder_name,
             folder_path=folder_path,
             entries=entries,
@@ -340,7 +747,52 @@ class TrashStore:
             delete_results=delete_results,
             errors=errors,
             warnings=warnings,
+            staged_count=len(staged),
+            not_staged_count=not_staged,
+            postcondition_failures=post,
+            plan=plan,
         )
+
+    def _check_postconditions(self, plan: TrashPlan,
+                              staged: List[PlannedItem],
+                              folder_path: str) -> List[str]:
+        """After the moves: is the disk in the state the plan promised?
+
+        For every item reported as staged: the original is gone; content
+        that was moved is where the manifest says; and a link's target still
+        exists with the same number of entries it had when planned (unless
+        the target was itself part of this batch). Uses ``lexists`` and
+        ``listdir`` only -- nothing is resolved.
+        """
+        failures: List[str] = []
+        through = {i.via_link for i in plan.items if i.via_link}
+        for item in staged:
+            c = item.classification
+            if os.path.lexists(item.path):
+                failures.append(
+                    f"{item.path} still exists (it was not removed, or "
+                    f"something re-created it)")
+            if item.action == "rename" and item.staged_name:
+                where = os.path.join(folder_path, "content", item.staged_name)
+                if not os.path.lexists(where):
+                    failures.append(
+                        f"{item.path} was reported staged but is not at "
+                        f"{where}")
+            if (item.action == "remove-link" and item.path not in through
+                    and item.link_target_entries is not None):
+                try:
+                    now = len(os.listdir(c.link_target))
+                except OSError:
+                    failures.append(
+                        f"the target of the link {item.path} "
+                        f"({c.link_target}) can no longer be listed")
+                    continue
+                if now != item.link_target_entries:
+                    failures.append(
+                        f"the target of the link {item.path} "
+                        f"({c.link_target}) had {item.link_target_entries} "
+                        f"entries before and has {now} now")
+        return failures
 
     def list_entries(
         self,
@@ -393,18 +845,69 @@ class TrashStore:
         stats.total_size_bytes = total_size
         return stats
 
-    def remove_folder(self, folder_name: str) -> bool:
-        """Permanently remove a trash folder, searching all stores."""
+    def remove_folder(self, folder_name: str,
+                      folder_path: Optional[str] = None) -> bool:
+        """Permanently remove a trash folder.
+
+        Pass ``folder_path`` (a ``TrashFolder.folder_path``) to remove that
+        exact folder. By name alone, every store is searched and the FIRST
+        folder with that name is removed -- and two stores can hold batches
+        with the same name (names have one-second resolution and each store
+        picks its own), so a by-name removal after recovering a batch from
+        one store could delete an unrelated, unrecovered batch in another.
+        Callers that hold a ``TrashFolder`` must pass its path.
+        """
         import shutil as _shutil
+        if folder_path is not None:
+            if os.path.basename(folder_path.rstrip("\\/")) != folder_name:
+                return False
+            if not os.path.isdir(folder_path) or os.path.islink(folder_path):
+                return False
+            try:
+                _shutil.rmtree(folder_path)
+                return True
+            except OSError:
+                return False
         for store_path in self._all_store_paths():
-            folder_path = os.path.join(store_path, folder_name)
-            if os.path.isdir(folder_path):
+            candidate = os.path.join(store_path, folder_name)
+            if os.path.isdir(candidate):
                 try:
-                    _shutil.rmtree(folder_path)
+                    _shutil.rmtree(candidate)
                     return True
                 except OSError:
                     return False
         return False
+
+    @staticmethod
+    def leftover_content(folder: "TrashFolder") -> List[str]:
+        """Paths still present under a batch's ``content/`` (files, links,
+        and non-empty folders are reported by their files). Empty folders do
+        not count. Used before a batch folder is removed after recovery: a
+        folder that still holds content is never removed as "recovered"."""
+        left: List[str] = []
+        content = os.path.join(folder.folder_path, "content")
+        stack = [content]
+        while stack:
+            current = stack.pop()
+            try:
+                with os.scandir(current) as it:
+                    for entry in it:
+                        if entry.is_dir(follow_symlinks=False) and not entry.is_symlink():
+                            try:
+                                reparse = bool(
+                                    getattr(entry.stat(follow_symlinks=False),
+                                            "st_file_attributes", 0) & 0x400)
+                            except OSError:
+                                reparse = False
+                            if reparse:
+                                left.append(entry.path)
+                            else:
+                                stack.append(entry.path)
+                        else:
+                            left.append(entry.path)
+            except OSError:
+                continue
+        return left
 
     def _all_store_paths(self) -> List[str]:
         """Get all known trash store paths (central + per-volume)."""
@@ -508,6 +1011,7 @@ class TrashStore:
             "stat": entry.stat,
             "metadata": entry.metadata,
             "warnings": entry.warnings,
+            "copy_first": entry.copy_first,
         }
 
     def _save_manifest(
@@ -530,12 +1034,18 @@ class TrashStore:
             return None
 
         manifest = None
+        manifest_error = None
         entries = []
 
-        if os.path.isfile(manifest_path):
+        if not os.path.isfile(manifest_path):
+            manifest_error = "missing"
+        else:
             try:
                 with open(manifest_path, "r", encoding="utf-8") as f:
-                    manifest = json.load(f)
+                    loaded = json.load(f)
+                if not isinstance(loaded, dict):
+                    raise ValueError("manifest is not a JSON object")
+                manifest = loaded
                 for e_dict in manifest.get("entries", []):
                     entries.append(TrashEntry(
                         original_path=e_dict.get("original_path", ""),
@@ -552,9 +1062,15 @@ class TrashStore:
                         stat=e_dict.get("stat"),
                         metadata=e_dict.get("metadata"),
                         warnings=e_dict.get("warnings", []),
+                        copy_first=e_dict.get("copy_first"),
                     ))
-            except (json.JSONDecodeError, OSError):
-                pass
+            except (ValueError, OSError, AttributeError, TypeError) as exc:
+                # json.JSONDecodeError is a ValueError. An unreadable
+                # manifest is reported, never silently turned into "this
+                # batch has no entries".
+                manifest = None
+                entries = []
+                manifest_error = f"unreadable ({exc})"
 
         return TrashFolder(
             folder_name=folder_name,
@@ -562,4 +1078,5 @@ class TrashStore:
             deleted_at=dt,
             entries=entries,
             manifest=manifest,
+            manifest_error=manifest_error,
         )

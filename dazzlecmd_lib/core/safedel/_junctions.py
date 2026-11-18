@@ -144,6 +144,66 @@ def _registry_links(registry_path: Optional[str]) -> List[tuple]:
     return found
 
 
+def default_registry_path() -> str:
+    """Where the junction registry lives for a real (non-test) run."""
+    return os.path.join(os.path.expanduser("~"), ".safedel", "junctions.json")
+
+
+def read_registry(registry_path: str) -> List[dict]:
+    """The registry's records as written (``link``, ``target``, ``type``,
+    and whatever else a writer added). An absent or unreadable file is an
+    empty registry."""
+    if not registry_path or not os.path.isfile(registry_path):
+        return []
+    try:
+        with open(registry_path, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, ValueError):
+        return []
+    records = data.get("links", []) if isinstance(data, dict) else data
+    return [r for r in (records or [])
+            if isinstance(r, dict) and r.get("link") and r.get("target")]
+
+
+def _write_registry(registry_path: str, records: List[dict]) -> None:
+    from dazzle_filekit.operations import atomic_write_json
+    folder = os.path.dirname(registry_path)
+    if folder:
+        os.makedirs(folder, exist_ok=True)
+    atomic_write_json(registry_path, records, indent=2)
+
+
+def register_link(link: str, target: str, link_type: str,
+                  registry_path: str, created_by: str = "") -> None:
+    """Record that ``link`` points at ``target``.
+
+    Called by the tools that CREATE links (for example a worktree's
+    ``private/`` junction), so that the folder a link points at can be
+    protected later even when the link is not inside a git worktree. Paths
+    are stored as given, made absolute lexically; nothing is resolved. A
+    record for the same link replaces the old one.
+    """
+    link_abs = os.path.abspath(link)
+    record = {"link": link_abs, "target": os.path.abspath(target),
+              "type": link_type}
+    if created_by:
+        record["created_by"] = created_by
+    records = [r for r in read_registry(registry_path)
+               if _key(r["link"]) != _key(link_abs)]
+    records.append(record)
+    _write_registry(registry_path, records)
+
+
+def unregister_link(link: str, registry_path: str) -> bool:
+    """Drop the record for ``link``. True if one was removed."""
+    records = read_registry(registry_path)
+    kept = [r for r in records if _key(r["link"]) != _key(link)]
+    if len(kept) == len(records):
+        return False
+    _write_registry(registry_path, kept)
+    return True
+
+
 def links_pointing_at(path: str, registry_path: Optional[str] = None
                       ) -> List[KnownLink]:
     """Known junctions and directory symlinks whose destination is exactly

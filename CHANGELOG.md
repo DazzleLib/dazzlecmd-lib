@@ -8,6 +8,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 This repository is the standalone home of the library, extracted from the dazzlecmd monorepo at v0.8.55 (2026-06-24). Commit history through 0.8.55 lives in the [dazzlecmd](https://github.com/DazzleTools/dazzlecmd) repository's git log (under `packages/dazzlecmd-lib/`); this CHANGELOG and all subsequent history continue here.
 
+## [0.10.38-alpha] - 2026-11-18
+
+A safe way to tear down a git worktree, and a registry of links.
+
+### Added
+- **Worktree teardown** (`core.safedel.plan_teardown`, `execute_teardown`). `git worktree remove` deletes through a junction or symlink inside the worktree and empties what it points at (measured on git 2.52.0.windows.1: with `--force`, and without it when the linked folder is gitignored). The teardown here never runs that command. It finds every link inside the worktree without entering any, removes the links only (to the trash, each target recorded), checks each target still has the entries it had, moves the worktree folder to the trash, checks again, and runs `git worktree prune`, which only drops the record of a worktree whose folder is gone. It stops at the first step whose check fails. `plan_teardown` changes nothing and refuses a repository's main checkout, a folder that is not a worktree, and a path that is itself a link.
+- **A registry of links** (`register_link`, `unregister_link`, `read_registry`, `default_registry_path`): tools that create a junction or symlink can record it in `~/.safedel/junctions.json`, so the folder it points at is protected from deletion even when the link is not inside a git worktree. A record counts only while its link still exists and still points there. The teardown removes the records of the links it removed.
+
+### Tests
+- `tests/test_core_safedel_worktree.py` (17), on real git repositories in temporary folders; one test fails if any git command other than `worktree prune` is issued. Audited by reverting 10 behaviours on a scratch copy; each turns a test red. The suite passes on Windows and on Linux (WSL).
+
 ## [0.10.37-alpha] - 2026-11-18
 
 safedel tells the truth about what it did, pauses when nobody can answer, and can no longer delete trash content it did not restore. On 2026-11-17 `dz safedel` was run by an agent without `--yes`: it prompted, read end-of-file, printed "Aborted." and exited 0, and the command line that called it went on to delete through two junctions. This release changes each link of that chain in the engine. The collision-free trash layout is still to come (#7).

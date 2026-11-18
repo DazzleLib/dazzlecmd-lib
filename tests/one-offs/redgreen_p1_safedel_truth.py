@@ -130,6 +130,28 @@ MUTATIONS = [
      [(SD + "_recover.py", "    stores = sorted({os.path.dirname(f.folder_path) for f in folders})", "    stores = [store.store_path]")], ""),
     ("status: only the central store is named",
      [(SD + "_recover.py", "        key = os.path.dirname(f.folder_path)\n", "        key = stats.store_path\n")], ""),
+    # -- P3: worktree teardown and the junction registry --
+    ("worktree: a main checkout is not told apart",
+     [(SD + "_worktree.py", "    if stat.S_ISDIR(st.st_mode) and not _is_reparse(st):\n        return None, None, (\"its .git is a folder", "    if False:\n        return None, None, (\"its .git is a folder")], ""),
+    ("worktree: the links are not removed before the folder moves (layer 1)",
+     [(SD + "_worktree.py", "    for link in plan.links:\n        r = store.trash([link.path], scopes=scopes)", "    for link in []:\n        r = store.trash([link.path], scopes=scopes)")], ""),
+    ("worktree: links left inside do not stop the move (layer 2 alone)",
+     [(SD + "_worktree.py", "    if left:\n        result.errors.append(\n            \"links are still inside", "    if False:\n        result.errors.append(\n            \"links are still inside")], "second-layer"),
+    ("worktree: both link layers off (the folder moves with its links)",
+     [(SD + "_worktree.py", "    for link in plan.links:\n        r = store.trash([link.path], scopes=scopes)", "    for link in []:\n        r = store.trash([link.path], scopes=scopes)"),
+      (SD + "_worktree.py", "    if left:\n        result.errors.append(\n            \"links are still inside", "    if False:\n        result.errors.append(\n            \"links are still inside")], ""),
+    ("worktree: a changed link target is not noticed",
+     [(SD + "_worktree.py", "                if now != link.target_entries:\n                    result.errors.append(\n                        f\"{after}: the target", "                if False:\n                    result.errors.append(\n                        f\"{after}: the target")], ""),
+    ("worktree: a failed prune is ignored",
+     [(SD + "_worktree.py", "        if rc not in (0, None):\n", "        if False:\n")], ""),
+    ("worktree: the search for links enters links",
+     [(SD + "_worktree.py", "            if _is_reparse(st):\n                try:\n                    info = detect_link(entry.path)", "            if False:\n                try:\n                    info = detect_link(entry.path)")], ""),
+    ("worktree: links are removed shallowest first",
+     [(SD + "_worktree.py", "key=lambda l: l.path.count(os.sep), reverse=True)", "key=lambda l: l.path.count(os.sep), reverse=False)")], ""),
+    ("worktree: removed links stay in the registry",
+     [(SD + "_worktree.py", "                unregister_link(link.path, registry_path)", "                pass")], ""),
+    ("registry: registering a link twice duplicates it",
+     [(SD + "_junctions.py", "    records = [r for r in read_registry(registry_path)\n               if _key(r[\"link\"]) != _key(link_abs)]\n    records.append(record)", "    records = list(read_registry(registry_path))\n    records.append(record)")], ""),
     ("clean: a refusal exits 0",
      [(SD + "_recover.py", "    return EXIT_REFUSED\n", "    return EXIT_OK\n")], ""),
     ("mode: --force overrides a refusal",
@@ -178,7 +200,8 @@ def build_copy(root):
     shutil.copytree(os.path.join(LIB_REPO, "dazzlecmd_lib"),
                     os.path.join(lib, "dazzlecmd_lib"), ignore=ignore)
     os.makedirs(os.path.join(lib, "tests"))
-    for name in ("conftest.py", "test_core_safedel_truth.py"):
+    for name in ("conftest.py", "test_core_safedel_truth.py",
+                 "test_core_safedel_worktree.py"):
         shutil.copy2(os.path.join(LIB_REPO, "tests", name), os.path.join(lib, "tests", name))
     os.makedirs(os.path.join(tool, "tests"))
     for name in ("safedel.py", "_cli_0_12_24.py"):
@@ -200,7 +223,7 @@ def run_tests(root):
            if p and os.path.basename(p.rstrip("/\\")) != "dazzlecmd-lib"])
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     failed, tails = [], []
-    for cwd, target in ((os.path.join(root, "lib"), "tests/test_core_safedel_truth.py"),
+    for cwd, target in ((os.path.join(root, "lib"), "tests"),
                         (os.path.join(root, "tool"), "tests")):
         p = subprocess.run(
             [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider",

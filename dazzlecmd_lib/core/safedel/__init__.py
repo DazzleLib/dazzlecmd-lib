@@ -75,9 +75,33 @@ from dazzlecmd_lib.core.safedel._verdict import (
 )
 from dazzlecmd_lib.core.safedel._zones import copy_first_settings
 from dazzlecmd_lib.core.safedel._copyfirst import parse_size, format_bytes
-from dazzlecmd_lib.core.safedel._junctions import links_pointing_at
+from dazzlecmd_lib.core.safedel._junctions import (
+    links_pointing_at,
+    register_link,
+    unregister_link,
+    read_registry,
+    default_registry_path,
+)
+from dazzlecmd_lib.core.safedel._worktree import (
+    plan_teardown,
+    execute_teardown,
+    find_links,
+    TeardownPlan,
+    TeardownResult,
+    WorktreeLink,
+)
 
 __all__ = [
+    "plan_teardown",
+    "execute_teardown",
+    "find_links",
+    "TeardownPlan",
+    "TeardownResult",
+    "WorktreeLink",
+    "register_link",
+    "unregister_link",
+    "read_registry",
+    "default_registry_path",
     "TrashStore",
     "TrashEntry",
     "TrashFolder",

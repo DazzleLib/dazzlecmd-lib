@@ -80,6 +80,11 @@ def no_moves(monkeypatch):
         raise AssertionError("a refusal failed: something tried to move, "
                              "delete or copy")
     monkeypatch.setattr(_store, "stage_to_trash", _boom)
+    # From 0.10.39 an item with a place in the batch is staged through
+    # _stage_item; blocking only the older call would leave the real move
+    # reachable, and these refusal tests would be safe only while the code
+    # under test is correct.
+    monkeypatch.setattr(_store, "_stage_item", _boom)
     monkeypatch.setattr(_store, "safe_delete", _boom)
     monkeypatch.setattr(_store, "_make_copy_first", _boom)
 
@@ -322,7 +327,7 @@ def test_interrupted_run_leaves_a_manifest_for_what_already_moved(
     a = _write(tmp_path / "src" / "a.txt", b"A")
     b = _write(tmp_path / "src" / "b.txt", b"B")
     store = _store_in(tmp_path)
-    real = _store.stage_to_trash
+    real = _store._stage_item
     calls = []
 
     def stage_then_die(path, dest, c):
@@ -330,11 +335,11 @@ def test_interrupted_run_leaves_a_manifest_for_what_already_moved(
         if len(calls) == 2:
             raise KeyboardInterrupt()
         return real(path, dest, c)
-    monkeypatch.setattr(_store, "stage_to_trash", stage_then_die)
+    monkeypatch.setattr(_store, "_stage_item", stage_then_die)
 
     with pytest.raises(KeyboardInterrupt):
         store.trash([str(a), str(b)])
-    monkeypatch.setattr(_store, "stage_to_trash", real)
+    monkeypatch.setattr(_store, "_stage_item", real)
 
     folders = store.list_entries()
     assert len(folders) == 1 and folders[0].state == "staging"
@@ -349,11 +354,16 @@ def test_interrupted_run_leaves_a_manifest_for_what_already_moved(
     assert a.read_bytes() == b"A"
 
 
-# -- same-name batches are refused whole -------------------------------------
+# -- two items on one place in the batch are refused whole -------------------
+# From 0.10.39 same-NAMED items get different places (see
+# test_core_safedel_layout.py), so this collision has to be manufactured by
+# switching the layout step off. The check it exercises is the plan's own
+# last look before anything moves.
 
 
 @pytest.mark.parametrize("names", [("x.json", "x.json"), ("Data.TXT", "data.txt")])
-def test_same_name_batch_is_refused_whole(tmp_path, no_moves, names):
+def test_two_items_on_one_place_are_refused_whole(tmp_path, no_moves, names, monkeypatch):
+    monkeypatch.setattr(_store.TrashStore, "_plan_layout", lambda self, plan: None)
     a = _write(tmp_path / "src" / "a" / names[0], b"A")
     b = _write(tmp_path / "src" / "b" / names[1], b"B")
     c = _write(tmp_path / "src" / "other.txt", b"C")
@@ -361,7 +371,7 @@ def test_same_name_batch_is_refused_whole(tmp_path, no_moves, names):
     result = _store_in(tmp_path).trash([str(a), str(b), str(c)])
 
     assert result.refused and not result.success
-    assert "share a name" in result.errors[0]
+    assert "stored at one place" in result.errors[0]
     assert (a.read_bytes(), b.read_bytes(), c.read_bytes()) == (b"A", b"B", b"C")
     assert not (tmp_path / "trash").exists()        # no batch folder at all
     assert _verdict.result_verdict(result)[0] == 3
@@ -494,11 +504,10 @@ def test_survey_counts_without_following_links(tmp_path):
 def test_an_original_that_is_still_there_fails_the_check(tmp_path, monkeypatch):
     f = _write(tmp_path / "src" / "a.txt", b"A")
 
-    def claims_success_but_moves_nothing(path, dest, c):
+    def claims_success_but_moves_nothing(path, dest_path, c):
         return _store.StagingResult(success=True, source_path=path,
-                                    dest_path=os.path.join(dest, "a.txt"),
-                                    method="rename")
-    monkeypatch.setattr(_store, "stage_to_trash", claims_success_but_moves_nothing)
+                                    dest_path=dest_path, method="rename")
+    monkeypatch.setattr(_store, "_stage_item", claims_success_but_moves_nothing)
 
     result = _store_in(tmp_path).trash([str(f)])
 

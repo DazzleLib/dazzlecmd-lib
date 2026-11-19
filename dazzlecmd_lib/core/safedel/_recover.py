@@ -238,6 +238,7 @@ def _recover_folder_entries(
     to_path: Optional[str] = None,
     metadata_only: bool = False,
     dry_run: bool = False,
+    force_identity: bool = False,
 ) -> Tuple[int, int]:
     """Recover every entry in ``folder`` via ``_recover_entry``. Returns
     ``(recovered, errors)``.
@@ -264,10 +265,27 @@ def _recover_folder_entries(
     if folder.state == "staging":
         print(f"  NOTE: {folder.folder_name} is from a run that did not "
               f"finish; recovering what it had already moved.")
+    lost = _entries_that_lost_their_content(folder)
     for entry in folder.entries:
+        if id(entry) in lost:
+            # A batch written before same-named items got their own places:
+            # several entries point at ONE stored item, and it can only be
+            # one of them. Recovering it under another entry's path would
+            # put the wrong bytes there.
+            verb = "Would refuse" if dry_run else "ERROR"
+            print(
+                f"  {verb}: {entry.original_path}: content lost to a name "
+                f"collision (batch written before the fix). What is stored "
+                f"at {entry.content_path} belongs to "
+                f"{lost[id(entry)].original_path}.",
+                file=sys.stderr,
+            )
+            errors += 1
+            continue
         outcome = _recover_entry(
             store, folder, entry,
             to_path=to_path, metadata_only=metadata_only, dry_run=dry_run,
+            force_identity=force_identity,
         )
         if outcome is SKIPPED:
             continue        # never staged: neither recovered nor a failure
@@ -276,6 +294,112 @@ def _recover_folder_entries(
         else:
             errors += 1
     return recovered, errors
+
+
+_LINK_ENTRY_TYPES = ("symlink_file", "symlink_dir", "junction", "broken_link")
+
+
+def _content_parts(entry: TrashEntry) -> List[str]:
+    """An entry's ``content_path`` as its parts. Manifests hold it with
+    ``/`` (0.10.39 on) or the writer's native separator (before); both are
+    accepted."""
+    return [p for p in (entry.content_path or "").replace("\\", "/").split("/")
+            if p]
+
+
+def _content_file(folder: TrashFolder, entry: TrashEntry) -> Optional[str]:
+    """Where an entry's content sits on disk, or None if it has none."""
+    parts = _content_parts(entry)
+    return os.path.join(folder.folder_path, *parts) if parts else None
+
+
+def _batch_relpath(folder: TrashFolder, entry: TrashEntry) -> Optional[List[str]]:
+    """The entry's place under ``content/`` in a common-base batch (its path
+    relative to the batch's base), as parts. None for a flat batch (written
+    before 0.10.39) or an entry with nothing under ``content/``."""
+    layout = (folder.manifest or {}).get("content_layout")
+    parts = _content_parts(entry)
+    if layout != "common-base-v1" or len(parts) < 2 or parts[0] != "content":
+        return None
+    return parts[1:]
+
+
+def _entries_that_lost_their_content(folder: TrashFolder) -> dict:
+    """For a batch whose entries SHARE a stored item: ``{id(loser): owner}``.
+
+    Before 0.10.36 two same-named items in one batch were staged onto one
+    place, the later overwriting the earlier, while the manifest kept an
+    entry for each. Such a manifest lists several entries with one
+    ``content_path``. What is stored there is the LAST item staged whose type
+    matches what is on disk (a file cannot be the survivor if a folder is
+    there); every other entry of the group has lost its content. Links are
+    left out: a link's entry carries its target in the manifest, not in
+    ``content/``.
+    """
+    groups: dict = {}
+    for entry in folder.entries:
+        if not entry.content_path or entry.file_type in _LINK_ENTRY_TYPES:
+            continue
+        key = "/".join(_content_parts(entry)).casefold()
+        groups.setdefault(key, []).append(entry)
+    lost: dict = {}
+    for members in groups.values():
+        if len(members) < 2:
+            continue
+        where = _content_file(folder, members[0])
+        on_disk_is_dir = bool(where) and os.path.isdir(where) \
+            and not os.path.islink(where)
+        matching = [e for e in members if bool(e.is_dir) == on_disk_is_dir]
+        owner = (matching or members)[-1]
+        for entry in members:
+            if entry is not owner:
+                lost[id(entry)] = owner
+    return lost
+
+
+def _size_mismatch(entry: TrashEntry, content_path: str) -> Optional[str]:
+    """Why a stored FILE is not the size the manifest recorded, or None.
+
+    The recorded size is ``staged_size`` (0.10.39 on: measured in the trash
+    when staged) or, for older batches, the original's ``st_size`` at delete
+    time. Folders and links are not compared. A missing record is not a
+    mismatch.
+    """
+    if entry.is_dir or entry.file_type in _LINK_ENTRY_TYPES:
+        return None
+    expected = entry.staged_size
+    if expected is None and isinstance(entry.stat, dict):
+        expected = entry.stat.get("st_size")
+    if expected is None:
+        return None
+    try:
+        actual = os.lstat(content_path).st_size
+    except OSError:
+        return None
+    if int(expected) == actual:
+        return None
+    return (f"the manifest recorded {int(expected)} bytes and the stored "
+            f"file has {actual}")
+
+
+def _mtime_note(entry: TrashEntry, content_path: str) -> Optional[str]:
+    """A note when a stored FILE's modification time differs from the one
+    recorded at delete time, or None. Only a note: a copy across drives or
+    filesystems can shift a timestamp by its resolution, and the size check
+    is what decides identity. More than two seconds apart counts."""
+    if entry.is_dir or entry.file_type in _LINK_ENTRY_TYPES:
+        return None
+    recorded = entry.stat.get("st_mtime") if isinstance(entry.stat, dict) else None
+    if recorded is None:
+        return None
+    try:
+        actual = os.lstat(content_path).st_mtime
+    except OSError:
+        return None
+    if abs(float(recorded) - actual) <= 2.0:
+        return None
+    return ("the stored file's modification time differs from the one "
+            "recorded when it was deleted")
 
 
 # _recover_entry's third outcome: the entry was never staged (refused because
@@ -311,8 +435,12 @@ def cmd_recover(
     to_path: Optional[str] = None,
     metadata_only: bool = False,
     dry_run: bool = False,
+    force_identity: bool = False,
 ) -> int:
-    """Recover files from trash."""
+    """Recover files from trash.
+
+    ``force_identity`` recovers a stored file even when its size differs from
+    what the manifest recorded (by default such an item is refused)."""
     folders = _resolve_folders(
         store, positional_args,
         contains=contains, path_pattern=path_pattern,
@@ -333,6 +461,7 @@ def cmd_recover(
         rec, err = _recover_folder_entries(
             store, folder,
             to_path=to_path, metadata_only=metadata_only, dry_run=dry_run,
+            force_identity=force_identity,
         )
         total_recovered += rec
         total_errors += err
@@ -364,6 +493,7 @@ def recover_folder(
     to_path: Optional[str] = None,
     metadata_only: bool = False,
     dry_run: bool = False,
+    force_identity: bool = False,
 ) -> int:
     """Recover one SPECIFIC trash folder by its exact name. Returns 0/1.
 
@@ -386,6 +516,7 @@ def recover_folder(
     recovered, errors = _recover_folder_entries(
         store, folder,
         to_path=to_path, metadata_only=metadata_only, dry_run=dry_run,
+        force_identity=force_identity,
     )
 
     # --metadata-only leaves the content in the trash; keep the folder.
@@ -413,6 +544,7 @@ def _recover_entry(
     to_path: Optional[str] = None,
     metadata_only: bool = False,
     dry_run: bool = False,
+    force_identity: bool = False,
 ) -> bool:
     """Recover a single entry from trash.
 
@@ -420,9 +552,17 @@ def _recover_entry(
     """
     # Determine recovery target
     if to_path:
-        # --to always acts as a parent directory: recover into it
-        os.makedirs(to_path, exist_ok=True)
-        target = os.path.join(to_path, entry.original_name)
+        # --to always acts as a parent directory: recover into it. An item
+        # of a common-base batch keeps its place relative to the batch's
+        # base, so two same-named items do not collide under --to either;
+        # an item of a flat batch (before 0.10.39) lands at <to>/<name>.
+        if not dry_run:
+            os.makedirs(to_path, exist_ok=True)
+        relpath = _batch_relpath(folder, entry)
+        if relpath:
+            target = os.path.join(to_path, *relpath)
+        else:
+            target = os.path.join(to_path, entry.original_name)
     else:
         target = entry.original_path
         # WSL dual-path fallback: if the native original_path can't be used
@@ -462,13 +602,31 @@ def _recover_entry(
             return False
 
     # Full recovery
-    content_path = None
-    if entry.content_path:
-        content_path = os.path.join(folder.folder_path, entry.content_path)
+    content_path = _content_file(folder, entry)
 
     if _never_staged(entry):
         print(_skip_message(entry, dry_run))
         return SKIPPED
+
+    # Is the stored file the one the manifest describes? A size that differs
+    # means the content was changed, truncated, or belongs to another item.
+    if content_path and os.path.lexists(content_path):
+        mismatch = _size_mismatch(entry, content_path)
+        if mismatch and not force_identity:
+            verb = "Would refuse" if dry_run else "ERROR"
+            print(
+                f"  {verb}: {entry.original_path}: {mismatch}. Not recovered; "
+                f"the stored file is still at {content_path}. To recover it "
+                f"anyway pass --force-identity.",
+                file=sys.stderr,
+            )
+            return False
+        if mismatch:
+            print(f"  WARNING: {entry.original_path}: {mismatch}; recovering "
+                  f"anyway (--force-identity).", file=sys.stderr)
+        note = _mtime_note(entry, content_path)
+        if note:
+            print(f"  NOTE: {entry.original_path}: {note}.", file=sys.stderr)
 
     if dry_run:
         print(f"  Would recover: {entry.original_name}")

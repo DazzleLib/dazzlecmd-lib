@@ -45,7 +45,10 @@ dependencies = [
     # filekit is the canonical home of that code. >=0.2.4 ships atomic_write_*;
     # >=0.3.3 ships pathenv (declared-platform PATH-value helpers), which
     # self_setup delegates its comparators to (dazzlecmd#103 homing).
-    "dazzle-filekit>=0.3.3",
+    # >=0.5.1: safedel's trash layout calls batch_layout.plan_batch (0.5.0),
+    # relies on copy_tree_preserving_links keeping junctions (0.5.0), and on
+    # the \\?\UNC\ normalizer fix (0.5.1).
+    "dazzle-filekit>=0.5.1",
     # The derived FQCN tree (fqcn_tree.py) is built on a NetworkX DiGraph
     # BEHIND the module's seam; the nx API subset consumed there is the
     # interface contract dazzle-graph-lib will implement (the swap is an

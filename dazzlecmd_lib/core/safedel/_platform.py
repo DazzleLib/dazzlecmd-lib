@@ -129,10 +129,25 @@ def stage_to_trash(
         StagingResult
     """
     source_name = os.path.basename(source_path)
-    dest_path = os.path.join(dest_dir, source_name)
+    return _stage_item(source_path, os.path.join(dest_dir, source_name),
+                       classification)
 
-    # Ensure dest directory exists
-    os.makedirs(dest_dir, exist_ok=True)
+
+def _stage_item(
+    source_path: str,
+    dest_path: str,
+    classification: Classification,
+) -> StagingResult:
+    """Stage one item at an exact destination path inside a trash batch.
+
+    ``stage_to_trash`` places an item at ``<dest_dir>/<its name>``. A batch
+    that keeps items under their relative paths (so that two items with the
+    same name can share a batch) needs to say where each one goes; this is
+    the same staging, given the full destination. Parent folders of
+    ``dest_path`` are created.
+    """
+    # Ensure the destination's folder exists
+    os.makedirs(os.path.dirname(dest_path), exist_ok=True)
 
     # For link types (symlink, junction): we don't copy target content.
     # We just need to record the link metadata in the manifest.

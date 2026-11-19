@@ -5,8 +5,16 @@ Manages the timestamped trash folder structure and manifest creation.
 Each delete operation creates a folder named YYYY-MM-DD__hh-mm-ss
 containing a manifest.json and a content/ directory.
 
-Uses preservelib.PreserveManifest for the manifest format and
-preservelib.metadata for metadata collection.
+Layout (``content_layout: "common-base-v1"``, from 0.10.39): every item
+sits under content/ at its path relative to the batch's common parent
+folder, so two items with one name never share a place. The manifest's
+``bases`` records that folder per drive or root. A manifest without
+``content_layout`` is a flat batch from before: every item directly
+under content/.
+
+The manifest is safedel's own JSON (see dazzlecmd's MANIFEST_SCHEMA.md),
+written atomically through dazzle_filekit; metadata comes from
+dazzle_filekit.metadata; the layout from dazzle_filekit.batch_layout.
 """
 
 import datetime
@@ -25,6 +33,7 @@ from ._platform import (
     detect_platform,
     get_trash_dir,
     stage_to_trash,
+    _stage_item,
     safe_delete,
     check_disk_space,
     calculate_size,
@@ -60,6 +69,10 @@ _LINK_TYPES = (
     FileType.JUNCTION, FileType.BROKEN_LINK,
 )
 _SYMLINK_TYPES = (FileType.SYMLINK_FILE, FileType.SYMLINK_DIR)
+
+# How items are arranged under a batch's content/ folder. Written to every
+# manifest from 0.10.39; a manifest without the field is a flat batch.
+CONTENT_LAYOUT = "common-base-v1"
 
 
 def _name_key(name: str) -> str:
@@ -141,6 +154,9 @@ class TrashEntry:
     # Copy-first record: where the hash-verified second copy is, and what was
     # verified. None when no copy was made.
     copy_first: Optional[Dict[str, Any]] = None
+    # Size in bytes of a staged FILE as it sat in the trash when staged.
+    # None for folders, links, and batches written before 0.10.39.
+    staged_size: Optional[int] = None
 
 
 @dataclass
@@ -153,7 +169,7 @@ class PlannedItem:
     path: str
     classification: Classification
     action: str                       # "rename" (into the trash) | "remove-link"
-    staged_name: Optional[str]        # name it takes under content/; None if nothing is placed there
+    staged_name: Optional[str]        # "/"-joined place under content/ (set by the layout); None if nothing is placed there
     copy_first: bool = False          # a verified copy is made before the move
     metadata_only: bool = False       # a link recorded in the manifest only
     via_link: Optional[str] = None    # this item is what that link points at (delete-through)
@@ -175,6 +191,9 @@ class TrashPlan:
     copy_first: bool = False
     copy_first_max: int = DEFAULT_MAX_BYTES
     copy_first_bytes: int = 0
+    # One per drive or root in the batch: {"native": <common parent folder>,
+    # "key": <its portable key>}. Items are stored relative to these.
+    bases: List[Dict[str, Any]] = field(default_factory=list)
 
     @property
     def refused(self) -> bool:
@@ -425,7 +444,13 @@ class TrashStore:
                 f"--yes {DELETE_THROUGH_SYMLINK} was given, but no path is a "
                 f"symlink or a symlink's destination")
 
-        # Two items that would land on one name under content/.
+        # Where each item sits under content/: its path relative to the
+        # batch's common base, so two items with one name do not collide.
+        self._plan_layout(plan)
+
+        # Belt and braces: no two items may land on one place under content/
+        # (compared after Unicode normalisation and case folding, which the
+        # layout planner does not do).
         by_name: Dict[str, List[str]] = {}
         for item in plan.items:
             if item.staged_name:
@@ -434,11 +459,10 @@ class TrashStore:
         clashes = {k: v for k, v in by_name.items() if len(v) > 1}
         if clashes:
             detail = "; ".join(
-                f"'{os.path.basename(v[0])}' ({', '.join(v)})"
-                for v in clashes.values())
+                f"'{k}' ({', '.join(v)})" for k, v in clashes.items())
             plan.refusals.append(
-                f"two or more items share a name, and one batch holds each "
-                f"name once: {detail}. Nothing was moved; delete them in "
+                f"two or more items would be stored at one place in the "
+                f"batch: {detail}. Nothing was moved; delete them in "
                 f"separate calls")
 
         # What each item holds (for the preview and the copy-first limit),
@@ -486,6 +510,96 @@ class TrashStore:
 
         self._plan_warnings(plan)
         return plan
+
+    def _plan_layout(self, plan: TrashPlan) -> None:
+        """Give every item its place under ``content/`` (common-base layout).
+
+        The batch's items are laid out relative to their common parent
+        folder, one base per drive or root, so ``a/docs`` and ``b/docs`` are
+        stored as ``a/docs`` and ``b/docs`` instead of fighting over
+        ``docs``. A batch of one item keeps just its name. The planner
+        (``dazzle_filekit.batch_layout.plan_batch``) reads no disk and
+        resolves nothing.
+
+        What it reports becomes part of the plan: a path given twice is kept
+        once and an item inside another item is dropped (warnings; the
+        dropped item leaves ``plan.items``); an item inside a link that is
+        also in the batch, a drive root, or two items that still land on one
+        place are refusals.
+        """
+        if not plan.items:
+            return
+        try:
+            from dazzle_filekit.batch_layout import plan_batch
+        except ImportError:
+            plan.refusals.append(
+                "this version of safedel needs dazzle-filekit 0.5.0 or later "
+                "(its batch layout planner is missing); nothing was moved")
+            return
+
+        if sys.platform == "win32":
+            flavor = "windows"
+        else:
+            flavor = "wsl" if self.platform_info.is_wsl else "posix"
+        # Only items that occupy a place under content/ are laid out. A
+        # junction (recorded in the manifest only) and the link of a
+        # delete-through pair take no place, so they must not stretch the
+        # common base: deleting through one link stores its target under the
+        # target's own name.
+        placed_items = [i for i in plan.items if i.staged_name is not None]
+        unplaced = [i for i in plan.items if i.staged_name is None]
+
+        # ... but an item INSIDE such a link is still refused: the link would
+        # be removed as a link, and the item is in what it points at.
+        def _inside(child: str, parent: str) -> bool:
+            a, b = child, parent.rstrip("\\/")
+            if sys.platform == "win32":
+                a, b = a.replace("/", "\\").casefold(), b.replace("/", "\\").casefold()
+            return a.startswith(b + os.sep)
+        for link in unplaced:
+            for other in plan.items:
+                if other is not link and other.via_link != link.path \
+                        and _inside(other.path, link.path):
+                    plan.refusals.append(
+                        f"{other.path} is inside {link.path}, which is a "
+                        f"link: the link would be removed as a link, and "
+                        f"this item is in what it points at. Name one or "
+                        f"the other")
+        if not placed_items:
+            return
+
+        link_paths = {i.path for i in placed_items
+                      if i.classification.file_type in _LINK_TYPES}
+        layout = plan_batch([i.path for i in placed_items], flavor=flavor,
+                            is_link=lambda p: p in link_paths)
+
+        for message in layout.errors:
+            plan.refusals.append(f"the batch cannot be laid out: {message}")
+        plan.warnings.extend(layout.warnings)
+        plan.bases = list(layout.bases)
+        if len(layout.bases) > 1:
+            roots = ", ".join(str(b.get("native")) for b in layout.bases)
+            plan.warnings.append(
+                f"this batch spans {len(layout.bases)} drives or roots "
+                f"({roots}) and one trash store holds it: items that are not "
+                f"on the store's drive are copied there, not moved")
+
+        # Match the planner's items back to ours, in order. A path given
+        # twice is in the layout once; the second PlannedItem is dropped.
+        placed = {b.original: b.relpath for b in layout.items}
+        kept: List[PlannedItem] = []
+        for item in plan.items:
+            if item.staged_name is None:
+                kept.append(item)       # takes no place; not laid out
+                continue
+            relpath = placed.pop(item.path, None)
+            if relpath is None:
+                if layout.errors:
+                    kept.append(item)   # refused anyway; keep it visible
+                continue
+            item.staged_name = relpath
+            kept.append(item)
+        plan.items = kept
 
     def _plan_item(self, c: Classification) -> PlannedItem:
         """The planned act for one ordinary (not delete-through) item."""
@@ -644,7 +758,15 @@ class TrashStore:
             manifest = self._build_manifest(folder_name, entries)
             manifest["state"] = state
             manifest["scopes"] = list(plan.scopes)
+            # Items sit under content/ at their path relative to these bases.
+            # A manifest without content_layout is a flat batch written
+            # before 0.10.39 (every item directly under content/).
+            manifest["content_layout"] = CONTENT_LAYOUT
+            manifest["bases"] = list(plan.bases)
             self._save_manifest(manifest, manifest_path)
+
+        def under(root: str, relpath: str) -> str:
+            return os.path.join(root, *relpath.split("/"))
 
         save("staging")
 
@@ -657,8 +779,8 @@ class TrashStore:
 
             copy_dest = None
             if item.copy_first and item.staged_name:
-                copy_dest = os.path.join(folder_path, "copy-first",
-                                         item.staged_name)
+                copy_dest = under(os.path.join(folder_path, "copy-first"),
+                                  item.staged_name)
                 try:
                     record = _make_copy_first(item.path, copy_dest, c.is_dir)
                 except OSError as e:
@@ -680,7 +802,10 @@ class TrashStore:
                     dest_path=os.path.join(content_dir,
                                            os.path.basename(c.path)),
                     method="metadata_only")
+            elif item.staged_name:
+                sr = _stage_item(c.path, under(content_dir, item.staged_name), c)
             else:
+                # a junction: recorded in the manifest, nothing under content/
                 sr = stage_to_trash(c.path, content_dir, c)
             staging_results.append(sr)
 
@@ -699,10 +824,17 @@ class TrashStore:
                 warnings.extend(sr.warnings)
 
             # Update entry with actual content path
-            if sr.method != "metadata_only":
-                entry.content_path = os.path.join(
-                    "content", os.path.basename(c.path)
-                )
+            if sr.method != "metadata_only" and item.staged_name:
+                # always "/"-joined, whatever the platform
+                entry.content_path = "content/" + item.staged_name
+                if not c.is_dir and c.file_type not in _LINK_TYPES:
+                    try:
+                        entry.staged_size = os.lstat(
+                            under(content_dir, item.staged_name)).st_size
+                    except OSError:
+                        pass
+            elif sr.method != "metadata_only":
+                entry.content_path = "content/" + os.path.basename(c.path)
 
             item_ok = True
             # Delete original (only if staging used copy, not rename)
@@ -773,7 +905,8 @@ class TrashStore:
                     f"{item.path} still exists (it was not removed, or "
                     f"something re-created it)")
             if item.action == "rename" and item.staged_name:
-                where = os.path.join(folder_path, "content", item.staged_name)
+                where = os.path.join(folder_path, "content",
+                                     *item.staged_name.split("/"))
                 if not os.path.lexists(where):
                     failures.append(
                         f"{item.path} was reported staged but is not at "
@@ -1012,6 +1145,7 @@ class TrashStore:
             "metadata": entry.metadata,
             "warnings": entry.warnings,
             "copy_first": entry.copy_first,
+            "staged_size": entry.staged_size,
         }
 
     def _save_manifest(
@@ -1063,6 +1197,7 @@ class TrashStore:
                         metadata=e_dict.get("metadata"),
                         warnings=e_dict.get("warnings", []),
                         copy_first=e_dict.get("copy_first"),
+                        staged_size=e_dict.get("staged_size"),
                     ))
             except (ValueError, OSError, AttributeError, TypeError) as exc:
                 # json.JSONDecodeError is a ValueError. An unreadable

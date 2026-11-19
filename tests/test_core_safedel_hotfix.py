@@ -47,11 +47,17 @@ def _three_same_named_files(tmp_path):
 
 
 def _no_precheck(monkeypatch):
-    """Switch off the plan's same-name refusal, so the per-item guard in
-    ``_stage_regular`` -- the second line of defence -- is what is tested.
-    Every name gets a distinct comparison key."""
+    """Force two items onto ONE place in the batch, so the per-item guard in
+    ``_stage_regular`` -- the last line of defence -- is what is tested.
+
+    From 0.10.39 the plan gives same-named items different places (the
+    common-base layout), so the collision has to be manufactured: the layout
+    step is switched off (every item keeps its bare name, as before 0.10.39)
+    and the plan's own collision check is blinded (every name gets a distinct
+    comparison key)."""
     counter = iter(range(10 ** 6))
     monkeypatch.setattr(_store, "_name_key", lambda name: f"k{next(counter)}")
+    monkeypatch.setattr(_store.TrashStore, "_plan_layout", lambda self, plan: None)
 
 
 def test_same_name_files_lose_no_bytes(tmp_path, monkeypatch):
@@ -387,6 +393,9 @@ def test_trash_of_literal_tilde_never_reaches_home(tmp_path, monkeypatch):
 
     monkeypatch.setattr(_store, "calculate_size", guard(_store.calculate_size))
     monkeypatch.setattr(_store, "stage_to_trash", guard(_store.stage_to_trash))
+    # 0.10.39: placed items are staged through _stage_item -- guard it too,
+    # or the guard is not on the path the code actually takes.
+    monkeypatch.setattr(_store, "_stage_item", guard(_store._stage_item))
     monkeypatch.setattr(_store, "safe_delete", guard(_store.safe_delete))
     monkeypatch.setattr(_store, "collect_file_metadata",
                         guard(_store.collect_file_metadata))

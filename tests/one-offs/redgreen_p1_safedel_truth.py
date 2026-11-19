@@ -36,6 +36,10 @@ TOOL_DIR = os.environ.get(
 
 SD = "lib/dazzlecmd_lib/core/safedel/"
 CLI = "tool/safedel.py"
+WT = "wt/worktree_teardown.py"
+WT_DIR = os.environ.get(
+    "WORKTREE_TEARDOWN_DIR",
+    r"C:\code\dazzlecmd\github\src\dazzlecmd\projects\dazzletools\worktree-teardown")
 
 # (name, [(file, old, new), ...], note)
 MUTATIONS = [
@@ -152,10 +156,72 @@ MUTATIONS = [
      [(SD + "_worktree.py", "                unregister_link(link.path, registry_path)", "                pass")], ""),
     ("registry: registering a link twice duplicates it",
      [(SD + "_junctions.py", "    records = [r for r in read_registry(registry_path)\n               if _key(r[\"link\"]) != _key(link_abs)]\n    records.append(record)", "    records = list(read_registry(registry_path))\n    records.append(record)")], ""),
+    # -- P3: the dz worktree-teardown command line --
+    ("wt cli: no --yes and nobody at the keyboard proceeds",
+     [(WT, "        if not stdin_is_interactive():\n", "        if False:\n")], ""),
+    ("wt cli: a declined prompt proceeds",
+     [(WT, '        if _ask("  Proceed? [y/N]: ") != "y":\n', "        if False:\n")], ""),
+    ("wt cli: a dry run executes",
+     [(WT, "    if args.dry_run:\n", "    if False:\n")], ""),
+    ("wt cli: a refused plan is executed",
+     [(WT, "    if plan.refused:\n        print(\"\\n  worktree-teardown: REFUSED", "    if False:\n        print(\"\\n  worktree-teardown: REFUSED")], ""),
+    ("wt cli: a teardown stopped part-way exits 0",
+     [(WT, '        return _finish(EXIT_PARTIAL, "STOPPED",', '        return _finish(EXIT_OK, "STOPPED",')], ""),
+    ("wt cli: the verdict line is not printed",
+     [(WT, '    print(verdict_line("worktree-teardown", outcome, detail))\n', "")], ""),
+    ("wt cli: an older library crashes instead of reporting",
+     [(WT, "    if _IMPORT_ERROR is not None:\n        print(\"  worktree-teardown needs", "    if False:\n        print(\"  worktree-teardown needs")], ""),
+    ("wt cli: a scope error is not a usage error",
+     [(WT, '        return _finish(EXIT_USAGE, "USAGE", str(exc))', '        argv, scopes, yes_given = [a for a in argv if "," not in a and not a.startswith("--yes")], (), True')], ""),
     ("clean: a refusal exits 0",
      [(SD + "_recover.py", "    return EXIT_REFUSED\n", "    return EXIT_OK\n")], ""),
     ("mode: --force overrides a refusal",
      [("lib/dazzlecmd_lib/mode.py", "    if refused:\n        # A refusal is safedel saying", "    if False:\n        # A refusal is safedel saying")], ""),
+    # -- 0.10.39: the common-base layout, and what recovery owes it --
+    ("layout: items keep their bare names (the layout step is skipped)",
+     [(SD + "_store.py", "        self._plan_layout(plan)\n", "        pass\n")], ""),
+    ("layout: what the planner cannot place is not a refusal",
+     [(SD + "_store.py", '            plan.refusals.append(f"the batch cannot be laid out: {message}")', "            pass")], ""),
+    ("layout: a missing planner crashes instead of refusing",
+     [(SD + "_store.py", "        except ImportError:\n            plan.refusals.append(\n                \"this version of safedel", "        except KeyError:\n            plan.refusals.append(\n                \"this version of safedel")], ""),
+    ("layout: an item the planner dropped stays in the plan",
+     [(SD + "_store.py", "            if relpath is None:\n                if layout.errors:\n", "            if relpath is None:\n                if True:\n")], ""),
+    ("layout: links that take no place still stretch the base",
+     [(SD + "_store.py", "        placed_items = [i for i in plan.items if i.staged_name is not None]", "        placed_items = list(plan.items)")], ""),
+    ("layout: an item inside a named link is not refused",
+     [(SD + "_store.py", "                        and _inside(other.path, link.path):", "                        and False:")], ""),
+    ("layout: the multi-root warning is not given",
+     [(SD + "_store.py", "        if len(layout.bases) > 1:\n", "        if False:\n")], ""),
+    ("layout: the manifest does not say which layout it uses",
+     [(SD + "_store.py", '            manifest["content_layout"] = CONTENT_LAYOUT\n', "")], ""),
+    ("layout: the manifest does not record the bases",
+     [(SD + "_store.py", '            manifest["bases"] = list(plan.bases)\n', "")], ""),
+    ("layout: content_path records the bare name, not the place",
+     [(SD + "_store.py", '                entry.content_path = "content/" + item.staged_name\n', '                entry.content_path = "content/" + os.path.basename(c.path)\n')], ""),
+    ("layout: a staged file's size is not recorded",
+     [(SD + "_store.py", "                if not c.is_dir and c.file_type not in _LINK_TYPES:\n                    try:\n                        entry.staged_size", "                if False:\n                    try:\n                        entry.staged_size")], ""),
+    ("layout: the item is staged under its bare name, not its place",
+     [(SD + "_store.py", "                sr = _stage_item(c.path, under(content_dir, item.staged_name), c)", "                sr = stage_to_trash(c.path, content_dir, c)")], ""),
+    ("recover: --to ignores an item's place in the batch",
+     [(SD + "_recover.py", "        if relpath:\n            target = os.path.join(to_path, *relpath)", "        if False:\n            target = os.path.join(to_path, *relpath)")], ""),
+    ("recover: a dry run with --to creates the folder",
+     [(SD + "_recover.py", "        if not dry_run:\n            os.makedirs(to_path, exist_ok=True)", "        if True:\n            os.makedirs(to_path, exist_ok=True)")], ""),
+    ("recover: a stored file of the wrong size is recovered",
+     [(SD + "_recover.py", "        if mismatch and not force_identity:\n", "        if False:\n")], ""),
+    ("recover: force_identity is ignored",
+     [(SD + "_recover.py", "        if mismatch and not force_identity:\n", "        if mismatch:\n")], ""),
+    ("recover: an older batch's size record is not used",
+     [(SD + "_recover.py", "    if expected is None and isinstance(entry.stat, dict):\n", "    if False:\n")], ""),
+    ("recover: a changed modification time is not noted",
+     [(SD + "_recover.py", "        if note:\n            print(f\"  NOTE: {entry.original_path}: {note}.\"", "        if False:\n            print(f\"  NOTE: {entry.original_path}: {note}.\"")], ""),
+    ("recover: every file gets the modification-time note",
+     [(SD + "_recover.py", "    if abs(float(recorded) - actual) <= 2.0:\n        return None", "    if False:\n        return None")], ""),
+    ("recover: entries that share one stored item are all recovered",
+     [(SD + "_recover.py", "        if id(entry) in lost:\n", "        if False:\n")], ""),
+    ("recover: the shared item goes to the FIRST entry",
+     [(SD + "_recover.py", "        owner = (matching or members)[-1]", "        owner = (matching or members)[0]")], ""),
+    ("recover: the shared item's type is not matched to the entry",
+     [(SD + "_recover.py", "        matching = [e for e in members if bool(e.is_dir) == on_disk_is_dir]", "        matching = list(members)")], ""),
     ("cli: no --yes and nobody at the keyboard proceeds",
      [(CLI, "        if not interactive or json_output:\n", "        if False:\n")], ""),
     ("cli: --json stands in for --yes at a console",
@@ -163,7 +229,7 @@ MUTATIONS = [
     ("cli: a declined prompt proceeds",
      [(CLI, '        if answer != "y":\n', "        if False:\n")], ""),
     ("cli: a refused plan is executed",
-     [(CLI, "    if plan.refused:\n        for reason in plan.refusals:", "    if False:\n        for reason in plan.refusals:")], ""),
+     [(CLI, "    if plan.refused:\n        sys.stdout.flush()    # the list above first, then the reasons", "    if False:\n        sys.stdout.flush()    # the list above first, then the reasons")], ""),
     ("cli: a dry run executes",
      [(CLI, "    if dry_run:\n        if not json_output:\n            print(\"  DRY RUN: nothing was changed.\")", "    if False:\n        if not json_output:\n            print(\"  DRY RUN: nothing was changed.\")")], ""),
     ("cli: the verdict line is not printed",
@@ -184,10 +250,12 @@ MUTATIONS = [
      [(CLI, '            print(verdict_line("safedel", "USAGE", str(exc)))\n            return EXIT_USAGE', '            print(verdict_line("safedel", "USAGE", str(exc)))\n            argv, scopes, yes_given = [a for a in argv if not a.startswith("--yes") and "," not in a], ("noninteractive",), True')], ""),
     ("cli: an unexpected exception exits 0",
      [(CLI, '            return _finish(EXIT_ERROR, "ERROR",', '            return _finish(EXIT_OK, "ERROR",')], ""),
-    ("cli: an older engine is an import error again (no fallback)",
+    ("cli: an older engine is not reported (the command goes on)",
      [(CLI, "    too_old = _engine_too_old()\n    if too_old:\n", "    too_old = _engine_too_old()\n    if False:\n")], ""),
     ("cli: a current engine takes the older-engine path",
      [(CLI, "    if _ENGINE_IMPORT_ERROR is None:\n        return None\n", "    if False:\n        return None\n")], ""),
+    ("cli: --force-identity is accepted but not passed on",
+     [(CLI, '        extra = {"force_identity": True} if args.force_identity else {}', "        extra = {}")], ""),
     ("cli: the report says 'recover last'",
      [(CLI, 'print(f"\\n  To recover:  dz safedel recover {result.folder_name}")', 'print(f"\\n  To recover:  dz safedel recover last")')], ""),
 ]
@@ -201,14 +269,20 @@ def build_copy(root):
                     os.path.join(lib, "dazzlecmd_lib"), ignore=ignore)
     os.makedirs(os.path.join(lib, "tests"))
     for name in ("conftest.py", "test_core_safedel_truth.py",
-                 "test_core_safedel_worktree.py"):
+                 "test_core_safedel_worktree.py",
+                 "test_core_safedel_layout.py"):
         shutil.copy2(os.path.join(LIB_REPO, "tests", name), os.path.join(lib, "tests", name))
     os.makedirs(os.path.join(tool, "tests"))
-    for name in ("safedel.py", "_cli_0_12_24.py"):
-        shutil.copy2(os.path.join(TOOL_DIR, name), os.path.join(tool, name))
+    shutil.copy2(os.path.join(TOOL_DIR, "safedel.py"), os.path.join(tool, "safedel.py"))
     shutil.copytree(os.path.join(TOOL_DIR, "_lib"), os.path.join(tool, "_lib"), ignore=ignore)
-    for name in ("conftest.py", "test_cli_truth.py", "test_cli_report.py"):
+    for name in ("conftest.py", "test_cli_truth.py", "test_cli_report.py",
+                 "test_cli_layout.py"):
         shutil.copy2(os.path.join(TOOL_DIR, "tests", name), os.path.join(tool, "tests", name))
+    wt = os.path.join(root, "wt")
+    os.makedirs(os.path.join(wt, "tests"))
+    shutil.copy2(os.path.join(WT_DIR, "worktree_teardown.py"), os.path.join(wt, "worktree_teardown.py"))
+    shutil.copy2(os.path.join(WT_DIR, "tests", "test_worktree_teardown.py"),
+                 os.path.join(wt, "tests", "test_worktree_teardown.py"))
     return lib, tool
 
 
@@ -224,7 +298,8 @@ def run_tests(root):
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     failed, tails = [], []
     for cwd, target in ((os.path.join(root, "lib"), "tests"),
-                        (os.path.join(root, "tool"), "tests")):
+                        (os.path.join(root, "tool"), "tests"),
+                        (os.path.join(root, "wt"), "tests")):
         p = subprocess.run(
             [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider",
              "-x" if False else "--no-header", "--tb=no", "-rfE", target],

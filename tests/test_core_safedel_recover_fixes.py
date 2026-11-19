@@ -74,11 +74,13 @@ def test_recover_by_exact_folder_name(tmp_path, capsys):
 def _batch_with_refused_item(tmp_path, monkeypatch):
     """A batch holding one staged item and one never-staged item -- what
     0.10.36 wrote for a same-name pair, and what any per-item staging
-    failure still writes. The plan's same-name refusal is switched off so
-    the per-item guard produces it."""
+    failure still writes. The layout step (which from 0.10.39 gives the two
+    different places) and the plan's collision check are both switched off,
+    so the per-item guard produces it."""
     from dazzlecmd_lib.core.safedel import _store
     counter = iter(range(10 ** 6))
     monkeypatch.setattr(_store, "_name_key", lambda name: f"k{next(counter)}")
+    monkeypatch.setattr(_store.TrashStore, "_plan_layout", lambda self, plan: None)
     a = tmp_path / "src" / "a" / "x.json"
     b = tmp_path / "src" / "b" / "x.json"
     _write(a, b"A")

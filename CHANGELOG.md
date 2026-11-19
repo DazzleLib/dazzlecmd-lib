@@ -8,6 +8,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 This repository is the standalone home of the library, extracted from the dazzlecmd monorepo at v0.8.55 (2026-06-24). Commit history through 0.8.55 lives in the [dazzlecmd](https://github.com/DazzleTools/dazzlecmd) repository's git log (under `packages/dazzlecmd-lib/`); this CHANGELOG and all subsequent history continue here.
 
+## [0.10.39-alpha] - 2026-11-18
+
+safedel gives every item its own place in the trash, so deleting two things with the same name in one call works instead of being refused. Recovery puts each one back where it came from.
+
+### Changed (callers of `TrashStore.trash()` should read this)
+- **Same-named items in one batch are staged, not refused.** Each item is stored under `content/` at its path relative to the batch's common parent folder: `a/x.json` and `b/x.json` become `content/a/x.json` and `content/b/x.json`. A batch of one item is still stored under its bare name. A batch that spans drives gets one base per drive and a numbered prefix (`content/0/...`, `content/1/...`), with a warning that items not on the store's drive are copied there, not moved. 0.10.37 refused such a batch whole; 0.10.36 staged the first item and left the rest; earlier versions overwrote.
+- **`PlannedItem.staged_name` is now a `/`-joined relative path**, not a bare name, and `TrashPlan.bases` lists the base folder per drive or root. The preview shows the same places the run uses.
+- **A path given twice is staged once, and an item inside another item of the batch is carried by it** -- each with a warning. Before, both were refused as a name clash.
+- **Refused before anything moves:** a drive or filesystem root as an item; an item inside a link that is also in the batch (the link would be removed as a link, and the item is in what it points at); two items that would still land on one place.
+- **Requires `dazzle-filekit>=0.5.1`** (the layout planner, a tree copy that keeps junctions, and a fix to how an extended-length network path is read). With an older filekit every delete is refused with a message that says so; nothing is moved.
+
+### Added
+- **Manifest fields** (no `version` change; all three are absent from older batches, which read as before): `content_layout: "common-base-v1"`; `bases` -- `[{"native": <folder>, "key": <portable key>}]`; per-entry `staged_size` -- the size of a staged file as it sat in the trash. `content_path` is always written with `/`; either separator is read.
+- **Recovery to another folder keeps each item's place**: `recover --to <dir>` puts an item of a common-base batch at `<dir>/<its relative path>`, so same-named items do not collide there either. Items of an older flat batch still land at `<dir>/<name>`. A dry run with `--to` no longer creates the folder.
+- **A size check on recovery.** A stored file whose size differs from what the manifest recorded is not recovered, and stays in the trash; `force_identity=True` (`--force-identity` in the CLI) recovers it anyway, with a warning. Older batches are checked against the original's recorded size. A modification time that differs by more than two seconds is reported as a note and does not stop recovery.
+- **Old batches whose entries share one stored item.** Before 0.10.36, same-named items overwrote each other in the trash while the manifest kept an entry for each. Recovering such a batch used to put the surviving bytes at the FIRST entry's path -- the wrong file under the wrong name. Now the stored item goes only to the entry it belongs to (the last one staged whose type matches what is on disk), and each of the others reports "content lost to a name collision (batch written before the fix)".
+- **`_stage_item(source, dest_path, classification)`** (private): staging to an exact destination. `stage_to_trash` keeps its signature and calls it.
+
+### Tests
+- `tests/test_core_safedel_layout.py` (25). The suite passes on Windows (790 passed, 2 skipped) and natively under WSL (788 passed, 3 skipped). Audited by reverting 22 behaviours on a scratch copy; each turns a test red. The old-batch rule was also run on a copy of a real batch written by 0.10.35 (12 entries, three of them sharing one stored file): the entry that owns the file recovered, the other two were refused with the collision message, and the original batch was not touched.
+- The tests' "nothing may move" stubs now cover `_stage_item` as well as `stage_to_trash`: once the engine staged through the new function, a refusal test that blocked only the old one would have been safe only while the code under test was correct.
+
 ## [0.10.38-alpha] - 2026-11-18
 
 A safe way to tear down a git worktree, and a registry of links.

@@ -856,9 +856,15 @@ def test_last_skips_a_batch_whose_manifest_is_unreadable(tmp_path, capsys, no_re
     os.unlink(os.path.join(result.folder_path, "manifest.json"))
 
     rc = sd.cmd_recover(store, ["last"])
+    text = capsys.readouterr().err
 
     assert rc == 1
     assert os.path.isdir(os.path.join(result.folder_path, "content"))
+    # "last" did not pick the batch at all (added 2026-11-18: without this
+    # line the test passed whether "last" skipped the batch or picked it and
+    # then failed on its manifest -- exit 1 and content kept either way)
+    assert "skipping" in text and "name it exactly" in text
+    assert "No matching entries" in text
 
 
 def test_a_folder_that_still_holds_content_is_kept(tmp_path, capsys, monkeypatch):

@@ -1,0 +1,46 @@
+[
+  {
+    "mode": "default",
+    "rc": 0,
+    "seconds": 11.9,
+    "marker_ran": false,
+    "block_text_reached_agent": true,
+    "control_ran": true,
+    "step1": "STEP1: REFUSED: PreToolUse:Bash hook error: [\"C:/Python312/python.exe\" -I \"C:/code/dazzlecmd-lib/tests/one-offs/thinking/safedel-line-guard/canary-a/canary_hook.py\" \"C:/Users/Extreme/AppData/Local/Temp/claude/aae160ab1a91aeb9/45711604-fa1f-424e-9889-ab32e93e5910/scratchpad/canary-a-run1/canary-hook-log.jsonl\"]: CANARY BLOCKED mode=default",
+    "step2": "STEP2: DZ_OTHER_CONTROL",
+    "stderr_tail": ""
+  },
+  {
+    "mode": "acceptEdits",
+    "rc": 0,
+    "seconds": 12.5,
+    "marker_ran": false,
+    "block_text_reached_agent": true,
+    "control_ran": true,
+    "step1": "STEP1: REFUSED: PreToolUse:Bash hook error: [\"C:/Python312/python.exe\" -I \"C:/code/dazzlecmd-lib/tests/one-offs/thinking/safedel-line-guard/canary-a/canary_hook.py\" \"C:/Users/Extreme/AppData/Local/Temp/claude/aae160ab1a91aeb9/45711604-fa1f-424e-9889-ab32e93e5910/scratchpad/canary-a-run1/canary-hook-log.jsonl\"]: CANARY BLOCKED mode=acceptEdits",
+    "step2": "STEP2: DZ_OTHER_CONTROL",
+    "stderr_tail": ""
+  },
+  {
+    "mode": "plan",
+    "rc": 0,
+    "seconds": 12.6,
+    "marker_ran": false,
+    "block_text_reached_agent": true,
+    "control_ran": true,
+    "step1": "STEP1: REFUSED: PreToolUse:Bash hook error: [\"C:/Python312/python.exe\" -I \"C:/code/dazzlecmd-lib/tests/one-offs/thinking/safedel-line-guard/canary-a/canary_hook.py\" \"C:/Users/Extreme/AppData/Local/Temp/claude/aae160ab1a91aeb9/45711604-fa1f-424e-9889-ab32e93e5910/scratchpad/canary-a-run1/canary-hook-log.jsonl\"]: CANARY BLOCKED mode=plan",
+    "step2": "STEP2: DZ_OTHER_CONTROL .",
+    "stderr_tail": ""
+  },
+  {
+    "mode": "bypassPermissions",
+    "rc": 0,
+    "seconds": 12.5,
+    "marker_ran": false,
+    "block_text_reached_agent": true,
+    "control_ran": true,
+    "step1": "STEP1: REFUSED: PreToolUse:Bash hook error: [\"C:/Python312/python.exe\" -I \"C:/code/dazzlecmd-lib/tests/one-offs/thinking/safedel-line-guard/canary-a/canary_hook.py\" \"C:/Users/Extreme/AppData/Local/Temp/claude/aae160ab1a91aeb9/45711604-fa1f-424e-9889-ab32e93e5910/scratchpad/canary-a-run1/canary-hook-log.jsonl\"]: CANARY BLOCKED mode=bypassPermissions",
+    "step2": "STEP2: DZ_OTHER_CONTROL",
+    "stderr_tail": ""
+  }
+]

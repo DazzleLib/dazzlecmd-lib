@@ -8,6 +8,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 This repository is the standalone home of the library, extracted from the dazzlecmd monorepo at v0.8.55 (2026-06-24). Commit history through 0.8.55 lives in the [dazzlecmd](https://github.com/DazzleTools/dazzlecmd) repository's git log (under `packages/dazzlecmd-lib/`); this CHANGELOG and all subsequent history continue here.
 
+## [0.10.47-alpha] - 2026-11-19
+
+### Added
+- **`core.safedel._guard`, the command guard, not yet wired to anything.** A standard-library-only judge that reads one shell line (bash or PowerShell) and answers allow, allow-and-check-afterwards, ask, or deny, from a table of destructive command forms per tool and a few rules about chains (several deletions in one line, a destructive step piped or chained after something whose failure it would hide, and so on). It is meant to run as a Claude Code `PreToolUse` hook; nothing installs it yet, and importing `core.safedel` does not import it. Its rules are the ones the prototype was built with; the open choices in them are applied in the next version.
+
+### Tests
+- `tests/test_core_safedel_guard.py` (265, 1 skipped): every table row's own examples, the chain rules, the hook's input and output, and the refusal messages. The judge is pure text in, verdict out; the tests make every route to a process or a deletion raise.
+
 ## [0.10.46-alpha] - 2026-11-19
 
 ### Changed

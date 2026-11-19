@@ -348,10 +348,13 @@ def build_copy(root):
                     os.path.join(lib, "dazzlecmd_lib"), ignore=ignore)
     os.makedirs(os.path.join(lib, "tests"))
     for name in ("conftest.py", "test_core_safedel_truth.py",
-                 "test_core_safedel_worktree.py",
+                 "test_core_safedel_registry.py",
                  "test_core_safedel_layout.py",
                  "test_core_safedel_recovery_fidelity.py",
-                 "test_core_safedel_cross_drive_links.py"):
+                 "test_core_safedel_cross_drive_links.py",
+                 "test_core_safedel_hotfix.py",
+                 "test_core_safedel_recover_fixes.py",
+                 "test_core_safedel.py"):
         shutil.copy2(os.path.join(LIB_REPO, "tests", name), os.path.join(lib, "tests", name))
     os.makedirs(os.path.join(tool, "tests"))
     shutil.copy2(os.path.join(TOOL_DIR, "safedel.py"), os.path.join(tool, "safedel.py"))
@@ -359,11 +362,17 @@ def build_copy(root):
     for name in ("conftest.py", "test_cli_truth.py", "test_cli_report.py",
                  "test_cli_layout.py"):
         shutil.copy2(os.path.join(TOOL_DIR, "tests", name), os.path.join(tool, "tests", name))
-    wt = os.path.join(root, "wt")
-    os.makedirs(os.path.join(wt, "tests"))
-    shutil.copy2(os.path.join(WT_DIR, "worktree_teardown.py"), os.path.join(wt, "worktree_teardown.py"))
-    shutil.copy2(os.path.join(WT_DIR, "tests", "test_worktree_teardown.py"),
-                 os.path.join(wt, "tests", "test_worktree_teardown.py"))
+    # The worktree-teardown command and its engine were removed on 2026-11-18
+    # (dazzlecmd 0.12.29, dazzlecmd-lib 0.10.41); the "worktree:" and
+    # "wt cli:" entries above are kept as a record and are skipped as GONE
+    # when their file is not in the copy. If the code is ever restored from
+    # private/revisions, they apply again.
+    if os.path.isfile(os.path.join(WT_DIR, "worktree_teardown.py")):
+        wt = os.path.join(root, "wt")
+        os.makedirs(os.path.join(wt, "tests"))
+        shutil.copy2(os.path.join(WT_DIR, "worktree_teardown.py"), os.path.join(wt, "worktree_teardown.py"))
+        shutil.copy2(os.path.join(WT_DIR, "tests", "test_worktree_teardown.py"),
+                     os.path.join(wt, "tests", "test_worktree_teardown.py"))
     return lib, tool
 
 
@@ -381,6 +390,8 @@ def run_tests(root):
     for cwd, target in ((os.path.join(root, "lib"), "tests"),
                         (os.path.join(root, "tool"), "tests"),
                         (os.path.join(root, "wt"), "tests")):
+        if not os.path.isdir(os.path.join(cwd, target)):
+            continue        # that part is no longer in the tree
         p = subprocess.run(
             [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider",
              "-x" if False else "--no-header", "--tb=no", "-rfE", target],
@@ -414,6 +425,11 @@ def main(argv):
             continue
         if note in ("windows", "posix") and note != platform:
             print("SKIP  %-74s (runs on %s)" % (name, note))
+            continue
+        gone = [rel for rel, _old, _new in edits
+                if not os.path.isfile(os.path.join(root, rel.replace("/", os.sep)))]
+        if gone:
+            print("GONE  %-74s (%s is no longer in the tree)" % (name, gone[0]))
             continue
         originals = {}
         problem = None
@@ -465,6 +481,8 @@ def main(argv):
         import json
         collected = []
         for sub in ("lib", "tool", "wt"):
+            if not os.path.isdir(os.path.join(root, sub, "tests")):
+                continue
             p = subprocess.run(
                 [sys.executable, "-m", "pytest", "--collect-only", "-q",
                  "-p", "no:cacheprovider", "-o", "addopts=", "tests"],

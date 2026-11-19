@@ -82,22 +82,8 @@ from dazzlecmd_lib.core.safedel._junctions import (
     read_registry,
     default_registry_path,
 )
-from dazzlecmd_lib.core.safedel._worktree import (
-    plan_teardown,
-    execute_teardown,
-    find_links,
-    TeardownPlan,
-    TeardownResult,
-    WorktreeLink,
-)
 
 __all__ = [
-    "plan_teardown",
-    "execute_teardown",
-    "find_links",
-    "TeardownPlan",
-    "TeardownResult",
-    "WorktreeLink",
     "register_link",
     "unregister_link",
     "read_registry",

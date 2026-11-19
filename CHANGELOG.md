@@ -8,6 +8,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 This repository is the standalone home of the library, extracted from the dazzlecmd monorepo at v0.8.55 (2026-06-24). Commit history through 0.8.55 lives in the [dazzlecmd](https://github.com/DazzleTools/dazzlecmd) repository's git log (under `packages/dazzlecmd-lib/`); this CHANGELOG and all subsequent history continue here.
 
+## [0.10.41-alpha] - 2026-11-18
+
+### Removed
+- **The worktree teardown engine** (`core.safedel.plan_teardown`, `execute_teardown`, `find_links`, `TeardownPlan`, `TeardownResult`, `WorktreeLink`; added in 0.10.38, never released). It removed a git worktree's links before moving the folder, because a folder holding a junction was only proven safe to stage when the trash was on the same drive. `TrashStore.trash()` now stages any folder that holds links safely on one drive and across drives (0.10.39 with dazzle-filekit 0.5.1; pinned by `tests/test_core_safedel_cross_drive_links.py`), so nothing git-specific is needed in safedel: delete the worktree folder with `trash()`, then run `git worktree prune`. `git worktree remove` is still never the way; it deletes through a junction inside the worktree.
+
+### Unchanged
+- The link registry (`register_link`, `unregister_link`, `read_registry`, `default_registry_path`) and the refusal to trash a real folder that a known link points at. Their tests moved to `tests/test_core_safedel_registry.py`.
+
 ## [0.10.40-alpha] - 2026-11-18
 
 safedel recovery moves things back when it can, and says whether the timestamps match.

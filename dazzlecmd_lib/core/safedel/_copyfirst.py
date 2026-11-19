@@ -157,6 +157,12 @@ def parse_size(text: str) -> int:
 
 
 def _sha256(path: str) -> str:
+    # Deliberately not dazzle_filekit.verification.calculate_file_hash
+    # (considered 2026-11-19): that returns {} for a missing file and logs
+    # and swallows a read error, so a caller comparing two results would see
+    # two unreadable files as "equal". Verification here must FAIL when a file
+    # cannot be read, so this raises. Adopt filekit's only if it gains a
+    # raising mode.
     h = hashlib.sha256()
     with open(path, "rb") as fh:
         for block in iter(lambda: fh.read(1024 * 1024), b""):

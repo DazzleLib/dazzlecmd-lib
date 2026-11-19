@@ -486,7 +486,9 @@ def calculate_size(paths: List[str]) -> int:
 # filesystems. safedel warns about non-default streams during classification
 # so the user knows what's at risk.
 
-# Streams to ignore when warning about ADS (pre-filter to reduce alert fatigue)
+# Streams to ignore when warning about ADS (pre-filter to reduce alert fatigue).
+# Kept for reference and for any caller that imported it; the filtering itself
+# is filekit's since 0.10.46, whose list is the same two names.
 _ADS_IGNORE_STREAMS = {
     "::$DATA",              # Default data stream (not really ADS)
     ":Zone.Identifier:$DATA",  # Browser download marker (nearly universal)
@@ -504,63 +506,22 @@ def detect_alternate_streams(path: str) -> List[str]:
     Returns an empty list on non-Windows platforms, on errors, or when
     only the default stream exists.
 
-    Uses ctypes to call FindFirstStreamW/FindNextStreamW since pywin32
-    doesn't expose these.
+    Since 0.10.46 this delegates to dazzle-filekit's
+    ``platform.windows.detect_alternate_streams``. The two were the same code
+    line for line, with the same ignore list (compared 2026-11-19); this copy
+    was the older of the two. filekit's module refuses to import off Windows,
+    so it is imported here, lazily, only on Windows, and any failure to import
+    or call it gives an empty list, as before.
     """
     if sys.platform != "win32":
         return []
-
     try:
-        import ctypes
-        from ctypes import wintypes
-    except ImportError:
-        return []
-
-    kernel32 = ctypes.windll.kernel32
-
-    class WIN32_FIND_STREAM_DATA(ctypes.Structure):
-        _fields_ = [
-            ("StreamSize", ctypes.c_longlong),
-            ("cStreamName", ctypes.c_wchar * 296),
-        ]
-
-    try:
-        kernel32.FindFirstStreamW.argtypes = [
-            wintypes.LPCWSTR, ctypes.c_int,
-            ctypes.POINTER(WIN32_FIND_STREAM_DATA), wintypes.DWORD,
-        ]
-        kernel32.FindFirstStreamW.restype = wintypes.HANDLE
-        kernel32.FindNextStreamW.argtypes = [
-            wintypes.HANDLE, ctypes.POINTER(WIN32_FIND_STREAM_DATA),
-        ]
-        kernel32.FindNextStreamW.restype = wintypes.BOOL
-        kernel32.FindClose.argtypes = [wintypes.HANDLE]
-    except (AttributeError, OSError):
-        return []
-
-    INVALID_HANDLE_VALUE = wintypes.HANDLE(-1).value
-
-    streams: List[str] = []
-    data = WIN32_FIND_STREAM_DATA()
-
-    try:
-        handle = kernel32.FindFirstStreamW(str(path), 0, ctypes.byref(data), 0)
-        if handle == INVALID_HANDLE_VALUE:
-            return []
-
-        try:
-            while True:
-                name = data.cStreamName
-                if name and name not in _ADS_IGNORE_STREAMS:
-                    streams.append(name)
-                if not kernel32.FindNextStreamW(handle, ctypes.byref(data)):
-                    break
-        finally:
-            kernel32.FindClose(handle)
+        from dazzle_filekit.platform.windows import (
+            detect_alternate_streams as filekit_streams,
+        )
+        return list(filekit_streams(path))
     except Exception:
         return []
-
-    return streams
 
 
 def has_significant_ads(path: str) -> bool:

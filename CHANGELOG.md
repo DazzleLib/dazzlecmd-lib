@@ -8,6 +8,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 This repository is the standalone home of the library, extracted from the dazzlecmd monorepo at v0.8.55 (2026-06-24). Commit history through 0.8.55 lives in the [dazzlecmd](https://github.com/DazzleTools/dazzlecmd) repository's git log (under `packages/dazzlecmd-lib/`); this CHANGELOG and all subsequent history continue here.
 
+## [0.10.46-alpha] - 2026-11-19
+
+### Changed
+- **safedel's NTFS alternate-stream detection calls dazzle-filekit's** (`platform.windows.detect_alternate_streams`) instead of carrying its own copy. The two were the same code line for line, with the same two ignored stream names. It is imported only on Windows; a failure still gives an empty list.
+
+### Unchanged, on purpose
+- safedel keeps its own SHA-256 helper for copy-first verification. filekit's `calculate_file_hash` returns an empty result for a file it cannot read, so two unreadable files would compare equal; verification must fail instead.
+
+### Tests
+- `tests/test_core_safedel_streams.py`: a named stream is reported, the download marker is not, and a failure gives an empty list.
+
 ## [0.10.45-alpha] - 2026-11-19
 
 ### Changed

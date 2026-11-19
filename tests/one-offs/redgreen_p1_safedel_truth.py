@@ -354,6 +354,10 @@ MUTATIONS = [
      [(SD + "_linkinfo.py", "    if kind == LINK_HARDLINK and stat.S_ISREG(lst.st_mode) and lst.st_nlink > 1:", "    if False:")], ""),
     ("linkinfo: the classifier imports the host engine again",
      [(SD + "_classifier.py", "from ._linkinfo import (", "from dazzlecmd_lib.core.links import (")], ""),
+    ("streams: nothing is ever reported",
+     [(SD + "_platform.py", "        return list(filekit_streams(path))", "        return []")], "windows"),
+    ("streams: a filekit failure escapes into the delete",
+     [(SD + "_platform.py", "        return list(filekit_streams(path))\n    except Exception:\n        return []", "        return list(filekit_streams(path))\n    except ImportError:\n        return []")], "windows"),
     ("cli: no --yes and nobody at the keyboard proceeds",
      [(CLI, "        if not interactive or json_output:\n", "        if False:\n")], ""),
     ("cli: --json stands in for --yes at a console",
@@ -409,6 +413,7 @@ def build_copy(root):
                  "test_core_safedel_alt_path.py",
                  "test_core_safedel_writer_version.py",
                  "test_core_safedel_linkinfo.py",
+                 "test_core_safedel_streams.py",
                  "test_core_safedel_hotfix.py",
                  "test_core_safedel_recover_fixes.py",
                  "test_core_safedel.py"):

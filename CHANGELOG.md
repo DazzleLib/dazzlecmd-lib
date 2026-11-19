@@ -8,6 +8,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 This repository is the standalone home of the library, extracted from the dazzlecmd monorepo at v0.8.55 (2026-06-24). Commit history through 0.8.55 lives in the [dazzlecmd](https://github.com/DazzleTools/dazzlecmd) repository's git log (under `packages/dazzlecmd-lib/`); this CHANGELOG and all subsequent history continue here.
 
+## [0.10.44-alpha] - 2026-11-19
+
+### Changed
+- **A safedel manifest records the version that wrote it.** `safedel_version` carried the constant `"0.1.0"` in every manifest; it now carries the package's base version (for example `"0.10.44-alpha"`). In an existing manifest, `"0.1.0"` therefore means "written by 0.10.43 or earlier". If the version cannot be read the field says `"unknown"` and the delete goes on. Nothing reads the field yet.
+
 ## [0.10.43-alpha] - 2026-11-19
 
 ### Changed

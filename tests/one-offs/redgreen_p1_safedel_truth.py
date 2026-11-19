@@ -338,6 +338,10 @@ MUTATIONS = [
      [(SD + "_store.py", '            if re.match(r"^[a-zA-Z]:[\\\\/]", path):\n', "            if True:\n")], ""),
     ("alt-path: the MSYS /c/ form is dropped",
      [(SD + "_store.py", '            m = re.match(r"^/([a-zA-Z])(/.*)?$", path)', "            m = None")], ""),
+    ("writer-version: the manifest says 0.1.0 again",
+     [(SD + "_store.py", '            "safedel_version": _writer_version(),', '            "safedel_version": "0.1.0",')], ""),
+    ("writer-version: an unreadable version stops the delete",
+     [(SD + "_store.py", '        return str(get_base_version())\n    except Exception:\n        return "unknown"', '        return str(get_base_version())\n    except ImportError:\n        return "unknown"')], ""),
     ("cli: no --yes and nobody at the keyboard proceeds",
      [(CLI, "        if not interactive or json_output:\n", "        if False:\n")], ""),
     ("cli: --json stands in for --yes at a console",
@@ -391,6 +395,7 @@ def build_copy(root):
                  "test_core_safedel_cross_drive_links.py",
                  "test_core_safedel_broken_links.py",
                  "test_core_safedel_alt_path.py",
+                 "test_core_safedel_writer_version.py",
                  "test_core_safedel_hotfix.py",
                  "test_core_safedel_recover_fixes.py",
                  "test_core_safedel.py"):

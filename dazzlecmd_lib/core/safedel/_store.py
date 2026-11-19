@@ -92,6 +92,24 @@ def _name_key(name: str) -> str:
 from dazzle_filekit.metadata import collect_file_metadata, metadata_to_json
 
 
+def _writer_version() -> str:
+    """The version of the code writing a manifest, for ``safedel_version``.
+
+    Every manifest written through 0.10.43 says ``"0.1.0"``, a constant that
+    was never updated, so that value means "unknown, 0.10.43 or earlier" and
+    not a version. From 0.10.44 the field carries the package's base version
+    (for example ``"0.10.44-alpha"``), so a later reader can tell which rules
+    a batch was written under. This is the one place that names the hosting
+    package's version; if it cannot be read, the field says ``"unknown"``
+    and the delete goes on.
+    """
+    try:
+        from dazzlecmd_lib._version import get_base_version
+        return str(get_base_version())
+    except Exception:
+        return "unknown"
+
+
 def _compute_alt_path(path: str) -> Optional[str]:
     """Compute the alternate-platform form of a path for cross-runtime recovery.
 
@@ -1125,7 +1143,7 @@ class TrashStore:
         now = datetime.datetime.now()
         return {
             "version": 1,
-            "safedel_version": "0.1.0",
+            "safedel_version": _writer_version(),
             "deleted_at": now.isoformat(),
             "folder_name": folder_name,
             "platform": {

@@ -232,6 +232,29 @@ MUTATIONS = [
      [(SD + "_recover.py", '        print(f"\\n  Trash store: {only}")', "        pass")], ""),
     ("recover: a dry run recovers for real",
      [(SD + "_recover.py", '    if dry_run:\n        print(f"  Would recover: {entry.original_name}")', '    if False:\n        print(f"  Would recover: {entry.original_name}")')], ""),
+    # -- staging never overwrites (tests/test_core_safedel_hotfix.py). Added
+    #    2026-11-18: the full matrix showed 12 of that file's 17 tests had no
+    #    reversion in this script (they were audited on 2026-11-17 by hand).
+    #    Every one of these acts inside pytest's temp folders only.
+    #    DELIBERATELY NOT HERE: making classify() expand "~" again. That
+    #    reversion aims the code at the real home folder; the test that
+    #    covers it stubs the moving functions, but the plan step would still
+    #    walk the home folder to survey it. It was audited once, on
+    #    2026-11-17, and is left alone.
+    ("staging: an existing destination is overwritten",
+     [(SD + "_platform.py", "    if os.path.lexists(dest_path):\n        return StagingResult(\n            success=False,\n            source_path=source_path,\n            dest_path=dest_path,\n            method=\"refused\",",
+       "    if False:\n        return StagingResult(\n            success=False,\n            source_path=source_path,\n            dest_path=dest_path,\n            method=\"refused\",")], ""),
+    ("staging: a destination that is a broken link does not count as taken",
+     [(SD + "_platform.py", "    if os.path.lexists(dest_path):\n        return StagingResult(\n            success=False,\n            source_path=source_path,\n            dest_path=dest_path,\n            method=\"refused\",",
+       "    if os.path.exists(dest_path):\n        return StagingResult(\n            success=False,\n            source_path=source_path,\n            dest_path=dest_path,\n            method=\"refused\",")], ""),
+    ("staging: any rename failure falls back to copying",
+     [(SD + "_platform.py", "        if e.errno != errno.EXDEV:\n            return StagingResult(", "        if False:\n            return StagingResult(")], ""),
+    ("staging: a cross-drive rename failure is refused instead of copied",
+     [(SD + "_platform.py", "        if e.errno != errno.EXDEV:\n            return StagingResult(", "        if True:\n            return StagingResult(")], ""),
+    ("staging: a partial cross-drive copy is left in the trash",
+     [(SD + "_platform.py", "        leftover = _discard_partial_copy(dest_path)\n", "        leftover = None\n")], ""),
+    ("staging: a partial copy that cannot be removed is not reported",
+     [(SD + "_platform.py", '        return f"Partial copy left in trash at {dest_path}: {e}"', "        return None")], ""),
     # -- a folder holding a link, across drives --
     ("cross-drive: staging's tree copy follows links (copies the target into the trash)",
      [(SD + "_platform.py", "            copy_tree_preserving_links(source_path, dest_path)", '            copy_tree_preserving_links(source_path, dest_path, links="follow")')], ""),

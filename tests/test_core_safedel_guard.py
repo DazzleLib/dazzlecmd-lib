@@ -495,6 +495,35 @@ def test_d5_lease_with_includes_is_self_checking_the_rest_unconditional(shell, l
     assert G.judge(line, shell).decision == decision
 
 
+@pytest.mark.parametrize("line", ["x=$(rm -rf build)", "$(rm -rf build)",
+                                  "out=$(dz safedel --yes build)"])
+def test_a_deletion_inside_a_command_substitution_is_refused_for_that_reason(line):
+    """Pinned by the G3 audit, which found this branch unguarded: with nothing else on the line
+    the chain rules do not fire, so only the substitution check stands between these and an allow."""
+    v = G.judge(line, "bash")
+    assert v.decision == D
+    assert "command substitution" in v.why
+
+
+@pytest.mark.parametrize("line", ["cd /tmp/x && ls && rm -rf build",
+                                  "cd /tmp/x && git status && rm -rf build"])
+def test_one_cd_does_not_excuse_another_command_before_an_unconditional_delete(line):
+    """Killed mutant M7 of the G3 sweep (all -> any): only 'cd <literal> &&' may precede an
+    unconditional deletion, and every other command on the line must be such a cd."""
+    v = G.judge(line, "bash")
+    assert (v.decision, v.rule) == (D, "R3")
+
+
+@pytest.mark.parametrize("line", ["test -d build || dz safedel --yes build",
+                                  "dz safedel --yes build || echo failed"])
+def test_a_staging_step_joined_by_or_is_refused(line):
+    """Killed mutant M9 of the G3 sweep: '||' runs one side only when the other fails, which hides
+    the staging step's result; only '&&' may join it."""
+    v = G.judge(line, "bash")
+    assert (v.decision, v.rule) == (D, "R4")
+    assert G.judge("cd /tmp/x && dz safedel --yes build", "bash").decision == P
+
+
 def test_guard_imports_only_the_standard_library():
     """The hook runs `python -I _guard.py`; a third-party or package import would fail there,
     and importing the library would cost about 0.4 s per tool call."""

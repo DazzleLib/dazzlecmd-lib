@@ -1,0 +1,192 @@
+{
+  "harness": {
+    "name": "mutation_sweep.py",
+    "version": "0.2.0"
+  },
+  "environment": {
+    "python": "3.12.0",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "root": ".",
+    "test_command": [
+      "python",
+      "-m",
+      "pytest",
+      "-q",
+      "-p",
+      "no:cacheprovider",
+      "-x",
+      "tests/test_core_safedel_guard.py"
+    ],
+    "timestamp": "2026-11-19T02:17:29-05:00"
+  },
+  "results": [
+    {
+      "id": "M1",
+      "file": "dazzlecmd_lib/core/safedel/_guard.py",
+      "note": "R2 off-by-one: two deletion steps on one line are no longer refused; the second is treated as an 'other' command.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "v.decision == decision, \"%r -> %r (%s)\" % (line, v, v.why)\n        if rule is not None:\n>           assert v.rule == rule, \"%r -> %r\" % (line, v)\nE           AssertionError: 'dz safedel --yes x; rm -rf x' -> <Verdict DENY R4 safedel.stage,rm.recursive>\nE           assert 'R4' == 'R2'\nE             \nE             - R2\nE             + R4\n\ntests\\test_core_safedel_guard.py:246: AssertionError\n============================== warnings summary ===============================\ntests/test_core_safedel_guard.py::test_table[bash:dz safedel \"C:/code/filetoolkit__portable-key/pr]\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:83: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"An absolute path taken apart. ``token`` is the key's root part(s)\n\ntests/test_core_safedel_guard.py::test_table[bash:dz safedel \"C:/code/filetoolkit__portable-key/pr]\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:130: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"True for a component Windows accepts only under ``\\\\?\\``.\"\"\"\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ===========================\nFAILED tests/test_core_safedel_guard.py::test_table[bash:dz safedel --yes x; rm -rf x]\n!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!\n1 failed, 14 passed, 2 warnings in 0.59s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_core_safedel_guard.py::test_table[bash:dz safedel --yes x; rm -rf x]"
+      ]
+    },
+    {
+      "id": "M2",
+      "file": "dazzlecmd_lib/core/safedel/_guard.py",
+      "note": "Staging steps stop counting as deletions: they fall through to R5 ALLOW with no post-check, and a staging step beside an unconditional one escapes R2.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "])\n    def test_table(shell, line, decision, rule, form):\n        v = G.judge(line, shell)\n>       assert v.decision == decision, \"%r -> %r (%s)\" % (line, v, v.why)\nE       AssertionError: 'dz safedel --yes a 2>&1' -> <Verdict ALLOW - safedel.stage> ()\nE       assert 'ALLOW' == 'ALLOW-POST'\nE         \nE         - ALLOW-POST\nE         + ALLOW\n\ntests\\test_core_safedel_guard.py:244: AssertionError\n============================== warnings summary ===============================\ntests/test_core_safedel_guard.py::test_table[bash:dz safedel \"C:/code/filetoolkit__portable-key/pr]\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:83: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"An absolute path taken apart. ``token`` is the key's root part(s)\n\ntests/test_core_safedel_guard.py::test_table[bash:dz safedel \"C:/code/filetoolkit__portable-key/pr]\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:130: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"True for a component Windows accepts only under ``\\\\?\\``.\"\"\"\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ===========================\nFAILED tests/test_core_safedel_guard.py::test_table[bash:dz safedel --yes a 2>&1]\n!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!\n1 failed, 4 passed, 2 warnings in 0.63s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_core_safedel_guard.py::test_table[bash:dz safedel --yes a 2>&1]"
+      ]
+    },
+    {
+      "id": "M3",
+      "file": "dazzlecmd_lib/core/safedel/_guard.py",
+      "note": "or/and swap: an unconditional deletion without 'sole' is judged by the looser staging rules (R4), so it may share the line with other commands.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": ")\n        assert v.decision == decision, \"%r -> %r (%s)\" % (line, v, v.why)\n        if rule is not None:\n>           assert v.rule == rule, \"%r -> %r\" % (line, v)\nE           AssertionError: 'bash -c \"rm -rf x; echo hi\"' -> <Verdict DENY R4 rm.recursive>\nE           assert 'R4' == 'R3'\nE             \nE             - R3\nE             + R4\n\ntests\\test_core_safedel_guard.py:246: AssertionError\n============================== warnings summary ===============================\ntests/test_core_safedel_guard.py::test_table[bash:dz safedel \"C:/code/filetoolkit__portable-key/pr]\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:83: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"An absolute path taken apart. ``token`` is the key's root part(s)\n\ntests/test_core_safedel_guard.py::test_table[bash:dz safedel \"C:/code/filetoolkit__portable-key/pr]\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:130: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"True for a component Windows accepts only under ``\\\\?\\``.\"\"\"\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ===========================\nFAILED tests/test_core_safedel_guard.py::test_table[bash:bash -c \"rm -rf x; echo hi\"]\n!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!\n1 failed, 3 passed, 2 warnings in 0.73s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_core_safedel_guard.py::test_table[bash:bash -c \"rm -rf x; echo hi\"]"
+      ]
+    },
+    {
+      "id": "M4",
+      "file": "dazzlecmd_lib/core/safedel/_guard.py",
+      "note": "Wrong rule label on the substitution / null-output / background refusals.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "   v = G.judge(line, shell)\n        assert v.decision == decision, \"%r -> %r (%s)\" % (line, v, v.why)\n        if rule is not None:\n>           assert v.rule == rule, \"%r -> %r\" % (line, v)\nE           AssertionError: 'echo $(rm x)' -> <Verdict DENY R4 rm.any>\nE           assert 'R4' == 'R3'\nE             \nE             - R3\nE             + R4\n\ntests\\test_core_safedel_guard.py:246: AssertionError\n============================== warnings summary ===============================\ntests/test_core_safedel_guard.py::test_table[bash:dz safedel \"C:/code/filetoolkit__portable-key/pr]\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:83: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"An absolute path taken apart. ``token`` is the key's root part(s)\n\ntests/test_core_safedel_guard.py::test_table[bash:dz safedel \"C:/code/filetoolkit__portable-key/pr]\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:130: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"True for a component Windows accepts only under ``\\\\?\\``.\"\"\"\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ===========================\nFAILED tests/test_core_safedel_guard.py::test_table[bash:echo $(rm x)] - Asse...\n!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!\n1 failed, 5 passed, 2 warnings in 0.59s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_core_safedel_guard.py::test_table[bash:echo $(rm x)]"
+      ]
+    },
+    {
+      "id": "M5",
+      "file": "dazzlecmd_lib/core/safedel/_guard.py",
+      "note": "Background check looks for '&&' instead of '&': a deletion sent to the background with a single '&' is let through.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "assert v.decision == decision, \"%r -> %r (%s)\" % (line, v, v.why)\nE       AssertionError: 'dz safedel --yes a && git worktree prune' -> <Verdict DENY R4 safedel.stage,git.worktree.prune> (the deletion is sent to the background with '&')\nE       assert 'DENY' == 'ALLOW-POST'\nE         \nE         - ALLOW-POST\nE         + DENY\n\ntests\\test_core_safedel_guard.py:244: AssertionError\n============================== warnings summary ===============================\ntests/test_core_safedel_guard.py::test_table[bash:dz safedel \"C:/code/filetoolkit__portable-key/pr]\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:83: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"An absolute path taken apart. ``token`` is the key's root part(s)\n\ntests/test_core_safedel_guard.py::test_table[bash:dz safedel \"C:/code/filetoolkit__portable-key/pr]\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:130: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"True for a component Windows accepts only under ``\\\\?\\``.\"\"\"\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ===========================\nFAILED tests/test_core_safedel_guard.py::test_table[bash:dz safedel --yes a && git worktree prune]\n!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!\n1 failed, 10 passed, 2 warnings in 1.26s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_core_safedel_guard.py::test_table[bash:dz safedel --yes a && git worktree prune]"
+      ]
+    },
+    {
+      "id": "M6",
+      "file": "dazzlecmd_lib/core/safedel/_guard.py",
+      "note": "Position flip: the deletion must now be first instead of last.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "r (%s)\" % (line, v, v.why)\nE       AssertionError: 'cd build && rm -rf out' -> <Verdict DENY R3 rm.recursive> ('rm -rf out' shares the call with 'cd build'; only 'cd <literal path> &&' may come before an unconditional deletion, and nothing may follow it)\nE       assert 'DENY' == 'ALLOW-POST'\nE         \nE         - ALLOW-POST\nE         + DENY\n\ntests\\test_core_safedel_guard.py:244: AssertionError\n============================== warnings summary ===============================\ntests/test_core_safedel_guard.py::test_table[bash:dz safedel \"C:/code/filetoolkit__portable-key/pr]\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:83: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"An absolute path taken apart. ``token`` is the key's root part(s)\n\ntests/test_core_safedel_guard.py::test_table[bash:dz safedel \"C:/code/filetoolkit__portable-key/pr]\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:130: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"True for a component Windows accepts only under ``\\\\?\\``.\"\"\"\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ===========================\nFAILED tests/test_core_safedel_guard.py::test_table[bash:cd build && rm -rf out]\n!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!\n1 failed, 23 passed, 2 warnings in 0.95s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_core_safedel_guard.py::test_table[bash:cd build && rm -rf out]"
+      ]
+    },
+    {
+      "id": "M7",
+      "file": "dazzlecmd_lib/core/safedel/_guard.py",
+      "note": "all/any swap: one literal cd on the line excuses any other command sharing the call with an unconditional deletion.",
+      "verdict": "survived",
+      "restore_ok": true,
+      "output_tail": ""
+    },
+    {
+      "id": "M8",
+      "file": "dazzlecmd_lib/core/safedel/_guard.py",
+      "note": "Off-by-one slice: the joiner of the second command is not checked, so 'cd <path> ; rm' passes as a cd prefix.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "BLE])\n    def test_table(shell, line, decision, rule, form):\n        v = G.judge(line, shell)\n>       assert v.decision == decision, \"%r -> %r (%s)\" % (line, v, v.why)\nE       AssertionError: 'cd build; rm -rf out' -> <Verdict ALLOW-POST - rm.recursive> ()\nE       assert 'ALLOW-POST' == 'DENY'\nE         \nE         - DENY\nE         + ALLOW-POST\n\ntests\\test_core_safedel_guard.py:244: AssertionError\n============================== warnings summary ===============================\ntests/test_core_safedel_guard.py::test_table[bash:dz safedel \"C:/code/filetoolkit__portable-key/pr]\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:83: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"An absolute path taken apart. ``token`` is the key's root part(s)\n\ntests/test_core_safedel_guard.py::test_table[bash:dz safedel \"C:/code/filetoolkit__portable-key/pr]\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:130: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"True for a component Windows accepts only under ``\\\\?\\``.\"\"\"\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ===========================\nFAILED tests/test_core_safedel_guard.py::test_table[bash:cd build; rm -rf out]\n!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!\n1 failed, 26 passed, 2 warnings in 0.66s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_core_safedel_guard.py::test_table[bash:cd build; rm -rf out]"
+      ]
+    },
+    {
+      "id": "M9",
+      "file": "dazzlecmd_lib/core/safedel/_guard.py",
+      "note": "Staging rule accepts '||' as a joiner.",
+      "verdict": "survived",
+      "restore_ok": true,
+      "output_tail": ""
+    },
+    {
+      "id": "M10",
+      "file": "dazzlecmd_lib/core/safedel/_guard.py",
+      "note": "any/all swap in the second R0.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "\"\\n\", \" \")) for t in TABLE])\n    def test_table(shell, line, decision, rule, form):\n        v = G.judge(line, shell)\n>       assert v.decision == decision, \"%r -> %r (%s)\" % (line, v, v.why)\nE       AssertionError: \"echo 'rm -rf x' | bash\" -> <Verdict ALLOW - > ()\nE       assert 'ALLOW' == 'DENY'\nE         \nE         - DENY\nE         + ALLOW\n\ntests\\test_core_safedel_guard.py:244: AssertionError\n============================== warnings summary ===============================\ntests/test_core_safedel_guard.py::test_table[bash:dz safedel \"C:/code/filetoolkit__portable-key/pr]\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:83: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"An absolute path taken apart. ``token`` is the key's root part(s)\n\ntests/test_core_safedel_guard.py::test_table[bash:dz safedel \"C:/code/filetoolkit__portable-key/pr]\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:130: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"True for a component Windows accepts only under ``\\\\?\\``.\"\"\"\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ===========================\nFAILED tests/test_core_safedel_guard.py::test_table[bash:echo 'rm -rf x' | bash]\n!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!\n1 failed, 77 passed, 2 warnings in 0.71s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_core_safedel_guard.py::test_table[bash:echo 'rm -rf x' | bash]"
+      ]
+    },
+    {
+      "id": "M11",
+      "file": "dazzlecmd_lib/core/safedel/_guard.py",
+      "note": "Removed emptiness guard: a command with no arguments counts as help-only.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "in TABLE])\n    def test_table(shell, line, decision, rule, form):\n        v = G.judge(line, shell)\n>       assert v.decision == decision, \"%r -> %r (%s)\" % (line, v, v.why)\nE       AssertionError: \"find . -name '*.pyc' | xargs rm\" -> <Verdict ALLOW - > ()\nE       assert 'ALLOW' == 'DENY'\nE         \nE         - DENY\nE         + ALLOW\n\ntests\\test_core_safedel_guard.py:244: AssertionError\n============================== warnings summary ===============================\ntests/test_core_safedel_guard.py::test_table[bash:dz safedel \"C:/code/filetoolkit__portable-key/pr]\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:83: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"An absolute path taken apart. ``token`` is the key's root part(s)\n\ntests/test_core_safedel_guard.py::test_table[bash:dz safedel \"C:/code/filetoolkit__portable-key/pr]\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:130: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"True for a component Windows accepts only under ``\\\\?\\``.\"\"\"\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ===========================\nFAILED tests/test_core_safedel_guard.py::test_table[bash:find . -name '*.pyc' | xargs rm]\n!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!\n1 failed, 66 passed, 2 warnings in 0.66s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_core_safedel_guard.py::test_table[bash:find . -name '*.pyc' | xargs rm]"
+      ]
+    },
+    {
+      "id": "M12",
+      "file": "dazzlecmd_lib/core/safedel/_guard.py",
+      "note": "Dropped case normalisation of cmd.exe switches.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": " \" \")) for t in TABLE])\n    def test_table(shell, line, decision, rule, form):\n        v = G.judge(line, shell)\n>       assert v.decision == decision, \"%r -> %r (%s)\" % (line, v, v.why)\nE       AssertionError: 'robocopy a b //MIR' -> <Verdict ALLOW - > ()\nE       assert 'ALLOW' == 'ALLOW-POST'\nE         \nE         - ALLOW-POST\nE         + ALLOW\n\ntests\\test_core_safedel_guard.py:244: AssertionError\n============================== warnings summary ===============================\ntests/test_core_safedel_guard.py::test_table[bash:dz safedel \"C:/code/filetoolkit__portable-key/pr]\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:83: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"An absolute path taken apart. ``token`` is the key's root part(s)\n\ntests/test_core_safedel_guard.py::test_table[bash:dz safedel \"C:/code/filetoolkit__portable-key/pr]\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:130: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"True for a component Windows accepts only under ``\\\\?\\``.\"\"\"\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ===========================\nFAILED tests/test_core_safedel_guard.py::test_table[bash:robocopy a b //MIR]\n!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!\n1 failed, 104 passed, 2 warnings in 0.72s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_core_safedel_guard.py::test_table[bash:robocopy a b //MIR]"
+      ]
+    }
+  ],
+  "summary": {
+    "killed": 10,
+    "survived": 2
+  },
+  "anomalies": [],
+  "overlap": {
+    "kills": {
+      "tests/test_core_safedel_guard.py::test_table[bash:bash -c \"rm -rf x; echo hi\"]": [
+        "M3"
+      ],
+      "tests/test_core_safedel_guard.py::test_table[bash:cd build && rm -rf out]": [
+        "M6"
+      ],
+      "tests/test_core_safedel_guard.py::test_table[bash:cd build; rm -rf out]": [
+        "M8"
+      ],
+      "tests/test_core_safedel_guard.py::test_table[bash:dz safedel --yes a && git worktree prune]": [
+        "M5"
+      ],
+      "tests/test_core_safedel_guard.py::test_table[bash:dz safedel --yes a 2>&1]": [
+        "M2"
+      ],
+      "tests/test_core_safedel_guard.py::test_table[bash:dz safedel --yes x; rm -rf x]": [
+        "M1"
+      ],
+      "tests/test_core_safedel_guard.py::test_table[bash:echo $(rm x)]": [
+        "M4"
+      ],
+      "tests/test_core_safedel_guard.py::test_table[bash:echo 'rm -rf x' | bash]": [
+        "M10"
+      ],
+      "tests/test_core_safedel_guard.py::test_table[bash:find . -name '*.pyc' | xargs rm]": [
+        "M11"
+      ],
+      "tests/test_core_safedel_guard.py::test_table[bash:robocopy a b //MIR]": [
+        "M12"
+      ]
+    },
+    "identical": [],
+    "contained": [],
+    "killed_without_names": []
+  }
+}

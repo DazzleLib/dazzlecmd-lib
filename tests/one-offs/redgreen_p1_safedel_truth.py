@@ -232,6 +232,13 @@ MUTATIONS = [
      [(SD + "_recover.py", '        print(f"\\n  Trash store: {only}")', "        pass")], ""),
     ("recover: a dry run recovers for real",
      [(SD + "_recover.py", '    if dry_run:\n        print(f"  Would recover: {entry.original_name}")', '    if False:\n        print(f"  Would recover: {entry.original_name}")')], ""),
+    # -- a folder holding a link, across drives --
+    ("cross-drive: staging's tree copy follows links (copies the target into the trash)",
+     [(SD + "_platform.py", "            copy_tree_preserving_links(source_path, dest_path)", '            copy_tree_preserving_links(source_path, dest_path, links="follow")')], ""),
+    ("cross-drive: recovery's tree copy follows links",
+     [(SD + "_recover.py", "        copy_tree_preserving_links(content_path, target)\n        shutil.rmtree(content_path)", '        copy_tree_preserving_links(content_path, target, links="follow")\n        shutil.rmtree(content_path)')], ""),
+    ("cross-drive: staging's tree copy leaves links out",
+     [(SD + "_platform.py", "            copy_tree_preserving_links(source_path, dest_path)", '            copy_tree_preserving_links(source_path, dest_path, links="skip")')], ""),
     # -- 0.10.40: recovery moves things back; times are checked and reported --
     ("fidelity: a folder is copied back even on one drive",
      [(SD + "_recover.py", '        os.rename(content_path, target)\n        return "rename"', '        raise OSError(errno.EXDEV, "simulated")')], ""),
@@ -343,7 +350,8 @@ def build_copy(root):
     for name in ("conftest.py", "test_core_safedel_truth.py",
                  "test_core_safedel_worktree.py",
                  "test_core_safedel_layout.py",
-                 "test_core_safedel_recovery_fidelity.py"):
+                 "test_core_safedel_recovery_fidelity.py",
+                 "test_core_safedel_cross_drive_links.py"):
         shutil.copy2(os.path.join(LIB_REPO, "tests", name), os.path.join(lib, "tests", name))
     os.makedirs(os.path.join(tool, "tests"))
     shutil.copy2(os.path.join(TOOL_DIR, "safedel.py"), os.path.join(tool, "safedel.py"))

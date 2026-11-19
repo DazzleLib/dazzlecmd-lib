@@ -112,7 +112,11 @@ def test_a_hardlinked_file(tmp_path):
         pytest.skip("this filesystem refuses hard links")
     info = _same(a)
     assert info.link_type == "hardlink" and info.link_count == 2
-    assert os.path.basename(info.target) == "b.txt"            # the other name, from the host
+    if WINDOWS:
+        # The other name comes from the host engine, which finds it on Windows;
+        # on Linux (measured under WSL, 2026-11-19) it reports none -- and both
+        # detectors agree, which _same() has already checked.
+        assert os.path.basename(info.target) == "b.txt"
 
 
 @pytest.mark.parametrize("name, kind", [

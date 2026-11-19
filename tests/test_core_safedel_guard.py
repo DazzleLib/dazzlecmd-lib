@@ -377,7 +377,9 @@ def test_exit_codes_and_verdict_line():
 
 def run_hook(payload, env=None, raw=None):
     out, err = io.StringIO(), io.StringIO()
-    e = {"DZ_GUARD_LOG": "off"}
+    # These hook tests exercise the whole table; the hook's default scope ("safedel") is tested
+    # on its own further down.
+    e = {"DZ_GUARD_LOG": "off", "DZ_GUARD_SCOPE": "full"}
     e.update(env or {})
     text = raw if raw is not None else json.dumps(payload)
     code = G.main([], stdin=io.StringIO(text), stdout=out, stderr=err, env=e)
@@ -420,9 +422,78 @@ def test_hook_logs_blocks(tmp_path):
 
 def test_explain_mode_uses_graded_exit_code():
     out = io.StringIO()
-    assert G.main(["--judge", "rm -rf a; ls"], stdout=out, stderr=io.StringIO(), env={}) == G.EXIT_BLOCKED
-    assert G.main(["--judge", "ls"], stdout=io.StringIO(), stderr=io.StringIO(), env={}) == 0
+    full = {"DZ_GUARD_SCOPE": "full"}
+    assert G.main(["--judge", "rm -rf a; ls"], stdout=out, stderr=io.StringIO(), env=full) == G.EXIT_BLOCKED
+    assert G.main(["--judge", "ls"], stdout=io.StringIO(), stderr=io.StringIO(), env=full) == 0
+    # default scope: the same line has no dz safedel step, so it is outside the guard's scope
+    assert G.main(["--judge", "rm -rf a; ls"], stdout=io.StringIO(), stderr=io.StringIO(), env={}) == 0
     assert G.main(["--check"], stdout=io.StringIO(), stderr=io.StringIO(), env={}) == 0
+
+
+# ---- scope: the hook's default is "safedel" (the maintainer, 2026-11-19) -----------------------
+
+def run_hook_default_scope(command, shell_tool="Bash"):
+    """The hook as it will be installed: no DZ_GUARD_SCOPE in the environment."""
+    out, err = io.StringIO(), io.StringIO()
+    text = json.dumps({"tool_name": shell_tool, "tool_input": {"command": command}})
+    code = G.main([], stdin=io.StringIO(text), stdout=out, stderr=err, env={"DZ_GUARD_LOG": "off"})
+    return code, err.getvalue()
+
+
+@pytest.mark.parametrize("command", [
+    "rm -rf a && rm -rf b",                       # no dz safedel on the line: not policed
+    "rm -rf /t",
+    "git status && git checkout -- src/a.py",
+    "git commit --amend --no-edit && git push --force-with-lease",
+    'python -c "import shutil; shutil.rmtree(\'build\')"',
+    "dz safedel list && rm -rf build",            # list/status is not a destructive safedel step
+])
+def test_default_scope_leaves_lines_without_a_safedel_step_alone(command):
+    assert run_hook_default_scope(command)[0] == 0
+
+
+@pytest.mark.parametrize("command", [
+    "dz safedel --yes a && rm -rf b",             # the pattern the guard exists for
+    "dz safedel --yes a 2>&1 | tail -1",
+    "dz safedel --yes a; git worktree remove w",
+    "dz safedel a",                               # no --yes
+    "dz safedel --yes a > /dev/null 2>&1",
+    "git worktree remove w",                      # the incident's own form, always
+    "git clean -fdx",
+])
+def test_default_scope_blocks_the_safedel_and_incident_patterns(command):
+    code, err = run_hook_default_scope(command)
+    assert code == 2, err
+    assert "guard: BLOCKED" in err
+
+
+def test_default_scope_allows_the_safe_sequence():
+    assert run_hook_default_scope("dz safedel --yes a && git worktree prune")[0] == 0
+    assert run_hook_default_scope("cd /tmp/x && dz safedel --yes build")[0] == 0
+
+
+@pytest.mark.parametrize("command", [
+    "$DZ safedel --yes a",                        # command name from an expansion
+    'echo "dz safedel --yes a" | bash',           # text piped into a shell
+    "$(echo dz) safedel --yes a",
+])
+def test_default_scope_still_fails_closed_on_an_obscured_safedel_line(command):
+    """A line the guard cannot name or read stays in scope when it mentions safedel, so hiding
+    the command name is not a way around the guard."""
+    code, err = run_hook_default_scope(command)
+    assert code == 2, err
+    assert G.judge(command, "bash", {"scope": "safedel"}).rule == "R0"
+
+
+def test_an_unknown_scope_value_falls_back_to_safedel_not_full_or_off():
+    assert G._scope_from_env({"DZ_GUARD_SCOPE": "everything"}) == "safedel"
+    assert G._scope_from_env({"DZ_GUARD_SCOPE": " FULL "}) == "full"
+    assert G._scope_from_env({}) == "safedel"
+
+
+def test_judge_itself_still_defaults_to_the_whole_table():
+    assert G.judge("rm -rf a && rm -rf b", "bash").decision == D
+    assert G.judge("rm -rf a && rm -rf b", "bash", {"scope": "safedel"}).decision == A
 
 
 # ---- the shared file: byte-identical copies --------------------------------

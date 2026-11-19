@@ -8,6 +8,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 This repository is the standalone home of the library, extracted from the dazzlecmd monorepo at v0.8.55 (2026-06-24). Commit history through 0.8.55 lives in the [dazzlecmd](https://github.com/DazzleTools/dazzlecmd) repository's git log (under `packages/dazzlecmd-lib/`); this CHANGELOG and all subsequent history continue here.
 
+## [0.10.49-alpha] - 2026-11-19
+
+### Changed
+- **The command guard, run as a hook, now only polices lines with a `dz safedel` step on them.** That is the pattern it exists for: a `dz safedel` whose result is not checked, chained or piped with more destructive steps, or run without `--yes`. It also still refuses `git worktree remove` and `git clean` on their own, the forms behind the 2026-11-17 loss, and a line it cannot read that mentions safedel. Everything else -- a plain `rm -rf`, `git checkout --`, a forced push -- passes untouched. Over 150 recent sessions' commands that is 331 refusals instead of 1,057.
+- **The whole table is still there, behind a switch:** `DZ_GUARD_SCOPE=full` makes the hook judge every line again. An unknown value falls back to the safedel scope, never to "off". Called directly, `judge()` keeps judging every line, as before.
+
 ## [0.10.48-alpha] - 2026-11-19
 
 ### Changed

@@ -110,7 +110,20 @@ YES_SCOPES = ("noninteractive", "dangerous", "delete-through-junction", "delete-
 DEFAULT_CTX = {
     "agent": True,        # the caller is an AI agent (hook) -- False for a human's line guard
     "unattended": False,  # no human can answer an ASK (armed /goal, bypass mode)
+    "scope": "full",      # "full": every line is judged; "safedel": see SCOPE_SAFEDEL_FORMS
 }
+
+# Scope (the maintainer, 2026-11-19: "dz safedel lines only, wider rules behind a switch").
+# The guard exists for one pattern: a dz safedel step whose result is not checked, followed or
+# joined by more destructive steps. In the "safedel" scope a line is judged only when it holds a
+# destructive dz safedel step, one of the incident forms below (the 2026-11-17 loss was
+# `git worktree remove` deleting through junctions), or the word "safedel" on a line the guard
+# cannot read. Every other line is allowed untouched. The hook and `--judge` use this scope
+# unless DZ_GUARD_SCOPE=full; `judge()` itself defaults to "full", the whole table.
+SCOPE_ENV = "DZ_GUARD_SCOPE"
+SCOPE_DEFAULT_HOOK = "safedel"
+SCOPE_INCIDENT_FORMS = ("git.worktree.remove", "git.clean",
+                        "guarded.run")   # the override for those two still asks a human
 
 BLIND_SPOTS = (
     "script files (bash x.sh, python x.py, pwsh -File x.ps1) -- only the name is on the line",
@@ -1871,6 +1884,27 @@ class Verdict(object):
         return "<Verdict %s %s %s>" % (self.decision, self.rule or "-", ",".join(self.ids))
 
 
+def _in_safedel_scope(A, cmd):
+    """True when the line is one the "safedel" scope judges: a destructive dz safedel step (not
+    list/status), an incident form, or the word safedel on a line with a command the guard could
+    not name or read (so an obscured safedel line still fails closed)."""
+    for x in A.cmds:
+        s = x.step
+        if s is None:
+            continue
+        if s.id.startswith("safedel.") and s.cls != NOTD:
+            return True
+        if s.id in SCOPE_INCIDENT_FORMS:
+            return True
+    unreadable = bool(A.doubt) or any(x.opaque for x in A.cmds)
+    return unreadable and "safedel" in cmd.lower()
+
+
+def _scope_from_env(env):
+    s = (env.get(SCOPE_ENV) or SCOPE_DEFAULT_HOOK).strip().lower()
+    return s if s in ("full", "safedel") else SCOPE_DEFAULT_HOOK
+
+
 def _deny(v, rule, why, culprit):
     v.decision, v.rule, v.why, v.culprit = DENY, rule, why, culprit
     return v
@@ -1892,6 +1926,10 @@ def judge(cmd, shell="bash", ctx=None):
     v.steps = [x.step for x in A.cmds if x.step]
     v.suspects = A.suspects
     v.doubt = A.doubt
+
+    if c.get("scope", "full") == "safedel" and not _in_safedel_scope(A, cmd):
+        v.why = "outside the guard's scope (no dz safedel step on the line)"
+        return v
 
     # R0 -- fail closed.  This is the whole-raw-line scan: it looks at the complete original text,
     # never at a stripped or re-split copy (the hookproto.py:27 defect).
@@ -2146,7 +2184,8 @@ def hook(stdin_text, env, out, err):
         return HOOK_ALLOW
 
     ctx = {"agent": True,
-           "unattended": env.get("DZ_GUARD_UNATTENDED") == "1" or data.get("permission_mode") in UNATTENDED_MODES}
+           "unattended": env.get("DZ_GUARD_UNATTENDED") == "1" or data.get("permission_mode") in UNATTENDED_MODES,
+           "scope": _scope_from_env(env)}
     t0 = time.time()
     try:
         v = judge(cmd, shell, ctx)
@@ -2220,7 +2259,7 @@ def main(argv=None, stdin=None, stdout=None, stderr=None, env=None):
         if line is None or shell not in _TOOLS:
             err.write("usage: _guard.py --judge LINE [--shell bash|pwsh|cmd] [--human]\n")
             return EXIT_USAGE
-        v = judge(line, shell, {"agent": not human})
+        v = judge(line, shell, {"agent": not human, "scope": _scope_from_env(env)})
         out.write(render(v) + "\n")
         return EXIT_BLOCKED if v.decision == DENY else EXIT_OK
 

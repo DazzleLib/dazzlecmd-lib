@@ -19,6 +19,10 @@ spec = importlib.util.spec_from_file_location("_guard", LIB_GUARD)
 guard = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(guard)
 sys.modules["_guard"] = guard
+# DZ_GUARD_SCOPE=safedel measures what the installed hook will refuse (its default scope);
+# without it, judge()'s own default -- the whole table -- is measured.
+if os.environ.get("DZ_GUARD_SCOPE"):
+    guard.DEFAULT_CTX["scope"] = guard._scope_from_env(os.environ)
 
 spec2 = importlib.util.spec_from_file_location("measure_transcripts", SCRIPT)
 m = importlib.util.module_from_spec(spec2)

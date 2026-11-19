@@ -8,6 +8,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 This repository is the standalone home of the library, extracted from the dazzlecmd monorepo at v0.8.55 (2026-06-24). Commit history through 0.8.55 lives in the [dazzlecmd](https://github.com/DazzleTools/dazzlecmd) repository's git log (under `packages/dazzlecmd-lib/`); this CHANGELOG and all subsequent history continue here.
 
+## [0.10.45-alpha] - 2026-11-19
+
+### Changed
+- **safedel detects links with dazzle-filekit's link primitives** (`detect_link_type`, `read_link_target`) through a small module of its own, `core.safedel._linkinfo`, instead of importing `dazzlecmd_lib.core.links`. What a delete records does not change: the new detection gives the same answer as the old for a plain file and folder, file and directory symlinks, a broken symlink, a junction, a junction whose target is gone, a hardlinked file, and `.lnk` / `.url` / `.dazzlelink` descriptor files.
+- The target written inside a descriptor file and the other name of a hardlinked file, both used only in a warning line, are still taken from `core.links` when it can be imported. Without it the warning says less and nothing else changes.
+
+### Tests
+- `tests/test_core_safedel_linkinfo.py`: the old and new detection compared for every kind of link, the behaviour without `core.links`, and a check that no safedel module imports `core.links` at load.
+
 ## [0.10.44-alpha] - 2026-11-19
 
 ### Changed

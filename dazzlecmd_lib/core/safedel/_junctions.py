@@ -31,7 +31,7 @@ import json
 import os
 from typing import List, NamedTuple, Optional
 
-from dazzlecmd_lib.core.links import detect_link, LINK_JUNCTION, LINK_SYMLINK
+from ._linkinfo import detect_link, LINK_JUNCTION, LINK_SYMLINK
 
 
 class KnownLink(NamedTuple):

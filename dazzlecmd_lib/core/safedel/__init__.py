@@ -14,8 +14,10 @@ imports this primitive and adds the user-facing CLI + trash-management UX
 
 Metadata preservation (ACLs/ADS/timestamps/xattrs) comes from
 ``dazzle_filekit.metadata`` (a declared dependency -- the canonical home of that
-cross-platform code). Link detection comes from the sibling constitutional
-primitive ``dazzlecmd_lib.core.links``.
+cross-platform code). Link detection comes from ``_linkinfo``, built on
+``dazzle_filekit.links`` (since 0.10.45; before that, from the sibling
+``dazzlecmd_lib.core.links``, which is now only an optional source of two
+details used in warning text).
 
 
 **Deletion-scope policy** (codified 2026-06-11): recoverable deletion governs

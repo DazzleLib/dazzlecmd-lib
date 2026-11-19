@@ -1,7 +1,7 @@
 """
 File classification and safety verdicts for safedel.
 
-Wraps the links.py detect_link() function from the sibling 'links' tool
+Wraps safedel's link detection (_linkinfo.detect_link, on dazzle-filekit)
 and adds a safety layer that determines the correct delete method per
 file type and platform.
 
@@ -20,10 +20,11 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 
-# Link detection + classification comes from the constitutional links primitive
-# (dazzlecmd_lib.core.links). Relocated from the sibling 'links' tool's sys.path
-# hack -- a proper package import now that both live in the lib.
-from dazzlecmd_lib.core.links import (
+# Link detection comes from safedel's own module, built on dazzle-filekit's
+# link primitives (since 0.10.45). Until then it was imported from the hosting
+# package's link engine (dazzlecmd_lib.core.links), which tied the safety code
+# to its host; see _linkinfo.py.
+from ._linkinfo import (
     detect_link,
     LinkInfo,
     LINK_SYMLINK,

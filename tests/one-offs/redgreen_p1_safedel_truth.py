@@ -177,6 +177,37 @@ MUTATIONS = [
      [(SD + "_recover.py", "    return EXIT_REFUSED\n", "    return EXIT_OK\n")], ""),
     ("mode: --force overrides a refusal",
      [("lib/dazzlecmd_lib/mode.py", "    if refused:\n        # A refusal is safedel saying", "    if False:\n        # A refusal is safedel saying")], ""),
+    # -- added 2026-11-18 after the reversion-to-test matrix showed these
+    #    headline claims had tests that no reversion had ever turned red --
+    ("plan: planning creates the store folder",
+     [(SD + "_store.py", "        self._plan_warnings(plan)\n        return plan",
+       "        os.makedirs(plan.store_path, exist_ok=True)\n        self._plan_warnings(plan)\n        return plan")], ""),
+    ("execute: the first planned item is silently not performed",
+     [(SD + "_store.py", "        for item in plan.items:\n            c = item.classification\n\n            # Collect metadata before any changes",
+       "        for item in plan.items[1:]:\n            c = item.classification\n\n            # Collect metadata before any changes")], ""),
+    ("trash: a dry run executes the plan",
+     [(SD + "_store.py", "        if dry_run:\n            return TrashResult(\n                success=not plan.refused,",
+       "        if False:\n            return TrashResult(\n                success=not plan.refused,")], ""),
+    ("plan: a link without the scope is deleted THROUGH",
+     [(SD + "_store.py", "            if (is_j and want_j) or (is_s and want_s):\n", "            if is_j or is_s:\n")], ""),
+    ("plan: either delete-through scope allows any link's destination",
+     [(SD + "_store.py", '            allowed = all((k == "junction" and want_j)\n                          or (k == "symlink" and want_s) for k in kinds)',
+       "            allowed = want_j or want_s")], "second-layer"),
+    ("plan: the wrong scope allows the destination AND the unused-scope check is off (both layers)",
+     [(SD + "_store.py", '            allowed = all((k == "junction" and want_j)\n                          or (k == "symlink" and want_s) for k in kinds)',
+       "            allowed = want_j or want_s"),
+      (SD + "_store.py", "        if want_j and not used_j and not plan.refusals:\n", "        if False:\n"),
+      (SD + "_store.py", "        if want_s and not used_s and not plan.refusals:\n", "        if False:\n")], ""),
+    ("verdict: the refused exit code is not the published 3",
+     [(SD + "_verdict.py", "EXIT_REFUSED = 3\n", "EXIT_REFUSED = 7\n")], ""),
+    ("copy-first: '10MB' is read as ten bytes",
+     [(SD + "_copyfirst.py", "            return int(float(number) * factor)", "            return int(float(number))")], ""),
+    ("scopes: a repeated scope is kept twice",
+     [(SD + "_scopes.py", "        if p not in out:\n            out.append(p)", "        if True:\n            out.append(p)")], ""),
+    ("scopes: copy-first and no-copy-first together are accepted",
+     [(SD + "_scopes.py", "    if COPY_FIRST in out and NO_COPY_FIRST in out:\n", "    if False:\n")], ""),
+    ("execute: the manifest is not written before the first item moves",
+     [(SD + "_store.py", '        save("staging")\n\n        for item in plan.items:', "        for item in plan.items:")], ""),
     # -- 0.10.39: the common-base layout, and what recovery owes it --
     ("layout: items keep their bare names (the layout step is skipped)",
      [(SD + "_store.py", "        self._plan_layout(plan)\n", "        pass\n")], ""),
@@ -327,6 +358,7 @@ def main(argv):
 
     platform = "windows" if sys.platform == "win32" else "posix"
     unpinned = []
+    results = {}        # reversion -> the tests it turned red
     for name, edits, note in MUTATIONS:
         if only and only not in name:
             continue
@@ -364,6 +396,7 @@ def main(argv):
                 with open(path, "w", encoding="utf-8", newline="") as fh:
                     fh.write(text)
             main._cur = {}
+        results[name] = sorted(set(failed))
         if failed:
             print("RED   %-74s %d test(s): %s" % (name, len(failed), ", ".join(sorted(set(failed))[:3])
                                                 + (" ..." if len(set(failed)) > 3 else "")))
@@ -375,6 +408,23 @@ def main(argv):
 
     failed, tails = run_tests(root)
     print("\nGREEN again on the restored copy:", " | ".join(tails))
+    out = os.environ.get("REDGREEN_JSON")
+    if out:
+        # Which tests has a reversion ever turned red? A test in `collected`
+        # that appears under no reversion has never shown it can fail here.
+        import json
+        collected = []
+        for sub in ("lib", "tool", "wt"):
+            p = subprocess.run(
+                [sys.executable, "-m", "pytest", "--collect-only", "-q",
+                 "-p", "no:cacheprovider", "-o", "addopts=", "tests"],
+                cwd=os.path.join(root, sub), capture_output=True, text=True,
+                env=dict(os.environ, PYTHONPATH=os.path.join(root, "lib")))
+            collected += [sub + "/" + ln.strip() for ln in p.stdout.splitlines()
+                          if "::" in ln]
+        with open(out, "w", encoding="utf-8") as fh:
+            json.dump({"reversions": results, "collected": collected}, fh, indent=1)
+        print("wrote", out)
     print("unpinned: %d" % len(unpinned))
     for u in unpinned:
         print("  -", u)

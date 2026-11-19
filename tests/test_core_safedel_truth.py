@@ -186,6 +186,11 @@ def test_parse_scopes_dedupes_and_rejects_unknown():
     assert _scopes.parse_scopes("dangerous,dangerous") == ("dangerous",)
     with pytest.raises(_scopes.ScopeError):
         _scopes.parse_scopes("delete-thru-junction")
+    # the contradictory pair is refused by the parser itself, not only by
+    # split_yes's own check across several --yes (added 2026-11-18: the
+    # red-green matrix showed the parser's check had no test of its own)
+    with pytest.raises(_scopes.ScopeError):
+        _scopes.parse_scopes("copy-first,no-copy-first")
 
 
 # -- verdicts and exit codes -------------------------------------------------
@@ -352,6 +357,34 @@ def test_interrupted_run_leaves_a_manifest_for_what_already_moved(
     # ... but naming the batch recovers what it had moved.
     assert sd.cmd_recover(store, [folders[0].folder_name]) == 0
     assert a.read_bytes() == b"A"
+
+
+def test_a_run_interrupted_during_its_first_item_still_leaves_a_manifest(
+        tmp_path, monkeypatch):
+    """The manifest exists BEFORE the first item moves.
+
+    Added 2026-11-18: the red-green matrix showed nothing failed when the
+    first write was removed. The test above interrupts the SECOND item, by
+    which time a manifest has been written after the first. If the first
+    write were missing, a run that died on its first item would leave a
+    batch folder with no manifest -- which recovery treats as an error it
+    cannot explain.
+    """
+    f = _write(tmp_path / "src" / "a.txt", b"A")
+    store = _store_in(tmp_path)
+
+    def die(path, dest, c):
+        raise KeyboardInterrupt()
+    monkeypatch.setattr(_store, "_stage_item", die)
+
+    with pytest.raises(KeyboardInterrupt):
+        store.trash([str(f)])
+
+    assert f.read_bytes() == b"A"                       # nothing moved
+    folders = store.list_entries()
+    assert len(folders) == 1
+    assert folders[0].manifest_error is None            # a readable manifest ...
+    assert folders[0].state == "staging"                # ... that says the run did not finish
 
 
 # -- two items on one place in the batch are refused whole -------------------

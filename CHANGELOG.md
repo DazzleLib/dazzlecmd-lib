@@ -8,6 +8,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 This repository is the standalone home of the library, extracted from the dazzlecmd monorepo at v0.8.55 (2026-06-24). Commit history through 0.8.55 lives in the [dazzlecmd](https://github.com/DazzleTools/dazzlecmd) repository's git log (under `packages/dazzlecmd-lib/`); this CHANGELOG and all subsequent history continue here.
 
+## [0.10.42-alpha] - 2026-11-18
+
+safedel can recover a link whose target is gone.
+
+### Fixed
+- **A deleted broken symlink could not be recovered.** A symlink whose target did not exist was deleted and recorded correctly, but `recover` had no case for it and reported "No content available to recover". It is now recreated from its recorded target, as a directory link when the record says it was one.
+- **A junction whose target folder was gone was not recognised as a junction.** `core.links.detect_link` asked whether the path was a directory before reading its reparse tag; that question follows the junction, so the answer was no once the target was missing, and safedel classified the junction as an unknown file type. Detection now reads the link's own reparse tag only. This also affects every other user of `detect_link`.
+- **A junction to a missing target could not be recreated on recovery.** PowerShell's `New-Item` refuses a missing target. Recovery now uses `dazzle_filekit.links.create_junction_raw` in that case, which writes the reparse point directly, and prints a note that the target does not exist.
+
+### Tests
+- `tests/test_core_safedel_broken_links.py`: a broken file symlink and a junction with a missing target are each deleted and recovered, and the recovered link points where it did.
+
 ## [0.10.41-alpha] - 2026-11-18
 
 ### Removed

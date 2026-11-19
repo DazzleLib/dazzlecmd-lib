@@ -517,8 +517,12 @@ def detect_link(path):
             is_dir=is_dir,
         )
 
-    # Windows junction (reparse point that isn't a symlink)
-    if sys.platform == "win32" and os.path.isdir(path) and _is_junction_win(path):
+    # Windows junction (reparse point that isn't a symlink). The check reads
+    # the link's own reparse tag; it must not ask whether the path "is a
+    # directory", because that follows the junction and is False once its
+    # target is gone -- a junction to a missing folder was then reported as
+    # no link at all (fixed 0.10.42).
+    if sys.platform == "win32" and _is_junction_win(path):
         target = canonicalize_target(_safe_readlink(path))
         broken = target is not None and not os.path.exists(path)
         return LinkInfo(

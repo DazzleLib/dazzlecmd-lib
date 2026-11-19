@@ -702,7 +702,7 @@ def _recover_entry(
             print(f"    Link target: {entry.link_target}")
         if content_path and os.path.exists(content_path):
             print(f"    Content: available")
-        elif entry.file_type in ("symlink_file", "symlink_dir", "junction"):
+        elif entry.file_type in ("symlink_file", "symlink_dir", "junction", "broken_link"):
             print(f"    Content: link metadata (target={entry.link_target})")
         else:
             print(f"    Content: NOT available")
@@ -726,10 +726,16 @@ def _recover_entry(
 
     # Recover based on type
     try:
-        if entry.file_type in ("symlink_file", "symlink_dir"):
-            # Recreate symlink
+        if entry.file_type in ("symlink_file", "symlink_dir", "broken_link"):
+            # Recreate symlink. A link whose target was already missing when
+            # it was deleted ("broken_link") is still a link the person may
+            # want back: it is recreated from the recorded target, as a
+            # directory link if the record says it was one. Until 0.10.42
+            # there was no branch for it and recovery reported "No content
+            # available", so a deleted broken symlink could not be recovered.
             if entry.link_target:
-                is_dir = entry.file_type == "symlink_dir"
+                is_dir = (entry.file_type == "symlink_dir"
+                          or (entry.file_type == "broken_link" and bool(entry.is_dir)))
                 os.symlink(entry.link_target, target, target_is_directory=is_dir)
                 print(f"  Recovered symlink: {target} -> {entry.link_target}")
                 # The copy of the link kept under content/ is spent now.
@@ -1033,7 +1039,20 @@ def _create_junction(link_path: str, target_path: str) -> None:
     the path as code) and runs with ``-NoProfile -NonInteractive`` and
     ``ErrorActionPreference=Stop``.
     """
-    from dazzle_filekit.links import create_junction
+    from dazzle_filekit.links import create_junction, create_junction_raw
+    if not os.path.lexists(target_path):
+        # The junction's target is gone (it may already have been gone when
+        # the junction was deleted). PowerShell's New-Item refuses a missing
+        # target, so the junction could not be recovered at all until
+        # 0.10.42; filekit's raw creator writes the reparse point directly
+        # and does not need the target to exist.
+        if not create_junction_raw(target_path, link_path):
+            raise OSError(
+                f"Failed to create junction {link_path} -> {target_path} "
+                f"(the target does not exist)"
+            )
+        print(f"  NOTE: the junction's target does not exist: {target_path}")
+        return
     if not create_junction(target_path, link_path):
         raise OSError(
             f"Failed to create junction {link_path} -> {target_path}"

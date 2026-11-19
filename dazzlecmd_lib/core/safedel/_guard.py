@@ -1192,6 +1192,23 @@ REGISTRY = [
              use=[("*", "git stash list"), ("*", "git stash show -p stash@{0}")],
              examples=[("bash", "git stash drop"), ("bash", "git stash clear"), ("bash", "git stash drop stash@{1}")],
              evidence=E("documented", "drop removes a single entry, clear removes all", "git-stash(1)")),
+        # D5 (the maintainer, 2026-11-19: as recommended -- "measure it and reclass it self-checking
+        # if it refuses a moved remote"). Measured by tests/one-offs/measure_force_with_lease.py:
+        # --force-with-lease alone LOST the other clone's commit once this clone had fetched; with
+        # --force-if-includes it refused in both arms. So only the pair is self-checking, and only
+        # when no other forcing flag or refspec rides along.
+        dict(id="git.push.lease-includes",
+             when=("allof", ("sub", "push"), ("flag", "--force-with-lease"), ("flag", "--force-if-includes"),
+                   ("not", ("anyof", ("flag", "-f", "--force", "--mirror", "--delete", "-d", "--prune"),
+                            ("argre", r"^\+."), ("argre", r"^:[^:]")))),
+             **{"class": SELF},
+             examples=[("bash", "git push --force-with-lease --force-if-includes"),
+                       ("bash", "git push --force-with-lease --force-if-includes origin main"),
+                       ("pwsh", "git push --force-if-includes --force-with-lease origin topic")],
+             evidence=E("measured", "remote moved and this clone had fetched without merging: refused, exit 1, "
+                        "the other clone's commit kept; not fetched: refused, kept. --force-with-lease "
+                        "without --force-if-includes after a fetch: exit 0, the other commit LOST",
+                        W_BASH, date="2026-11-19")),
         dict(id="git.push.force",
              when=("allof", ("sub", "push"),
                    ("anyof", ("flag", "-f", "--force", "--force-with-lease", "--force-if-includes", "--mirror",
@@ -1199,13 +1216,16 @@ REGISTRY = [
              **{"class": UNCOND}, post="remote_ref_is_expected",
              preview=(PREVIEW_NATIVE, "git push --dry-run with the same arguments; git log <remote>/<branch>..HEAD and HEAD..<remote>/<branch>"),
              message="A forced push (or +refspec, --mirror, --delete, :branch) overwrites or deletes commits "
-                     "on the remote, for everyone. --force-with-lease refuses when the remote moved.",
-             use=[("*", "git push --force-with-lease origin <branch>"), ("*", "git push --dry-run origin <branch>")],
+                     "on the remote, for everyone. --force-with-lease alone does NOT protect you once you "
+                     "have fetched; add --force-if-includes, which refuses when the remote moved.",
+             use=[("*", "git push --force-with-lease --force-if-includes origin <branch>"),
+                  ("*", "git push --dry-run origin <branch>")],
              examples=[("bash", "git push -f origin main"), ("bash", "git push --force"), ("bash", "git push origin +main"),
                        ("bash", "git push origin :old-branch"), ("bash", "git push origin --delete old")],
-             evidence=E("documented", "--force disables the fast-forward check; --force-with-lease keeps a "
-                        "compare-and-swap on the remote ref (not measured here, so not classed self-checking)",
-                        "git-push(1)")),
+             evidence=E("measured", "--force-with-lease alone, after a fetch: exit 0 and the other clone's "
+                        "commit was LOST (tests/one-offs/measure_force_with_lease.py); the pair with "
+                        "--force-if-includes is the separate form git.push.lease-includes",
+                        W_BASH, date="2026-11-19")),
         dict(id="git.checkout.discard",
              when=("allof", ("sub", "checkout"), ("anyof", ("arg", "--", "."), ("flag", "-f", "--force"))),
              **{"class": UNCOND}, post="changes_saved", preview=(PREVIEW_NATIVE, "git diff --stat -- <paths>"),

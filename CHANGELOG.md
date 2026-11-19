@@ -8,6 +8,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 This repository is the standalone home of the library, extracted from the dazzlecmd monorepo at v0.8.55 (2026-06-24). Commit history through 0.8.55 lives in the [dazzlecmd](https://github.com/DazzleTools/dazzlecmd) repository's git log (under `packages/dazzlecmd-lib/`); this CHANGELOG and all subsequent history continue here.
 
+## [0.10.48-alpha] - 2026-11-19
+
+### Changed
+- **The command guard's open rule choices are settled** (they will be revisited after it has been used for a while). It refuses a `dz safedel` without `--yes`, any one-line interpreter program that deletes, and a delete whose output is thrown away (`> /dev/null`, `2>/dev/null`) or that runs in the background (`&`). It has no exemption for scratch or temp folders yet: a single delete there is allowed, several chained together are not. `git checkout -- <paths>`, `git restore` and `Remove-Item` are refused inside a chain.
+- **`git push --force-with-lease` is only trusted together with `--force-if-includes`.** Measured on git 2.52 with local repositories: `--force-with-lease` alone, after a fetch, overwrote another clone's commit; with `--force-if-includes` it refused. So `git commit --amend && git push --force-with-lease --force-if-includes` passes, while the same line without `--force-if-includes` is refused, and the guard's suggestion now includes it.
+
+### Tests
+- One test per rule choice; a test that the guard imports only the standard library (it runs as `python -I` in a hook); a test that its exit codes match safedel's.
+
 ## [0.10.47-alpha] - 2026-11-19
 
 ### Added

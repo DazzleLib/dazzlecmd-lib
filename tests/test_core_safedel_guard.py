@@ -449,3 +449,72 @@ def test_sha256_of_declared_copies():
         pytest.skip("no other copies declared (prototype stage: one file)")
     for p in copies:
         assert sha256(p) == sha256(GUARD_PATH), "copy drifted: %s" % p
+
+
+# ---------------------------------------------------------------------------------------------
+# D1-D5, the maintainer's decisions (2026-11-19: "all 5 recommendation", to be revisited after
+# dogfooding). One test per decision, pinning the behaviour the recommendation chose.
+
+@pytest.mark.parametrize("line, decision", [
+    ("dz safedel build", D),                 # D1: a bare dz safedel is refused (second net; safedel
+    ("dz safedel --yes build", P),           #     itself refuses without --yes since 0.10.37)
+])
+def test_d1_bare_safedel_is_refused(line, decision):
+    assert G.judge(line, "bash").decision == decision
+
+
+@pytest.mark.parametrize("line", [
+    'python -c "import shutil; shutil.rmtree(\'build\')"',
+    "python - <<'PY'\nimport os\nos.remove('a.db')\nPY",
+])
+def test_d2_interpreter_deletes_are_always_refused(line):
+    assert G.judge(line, "bash").decision == D
+
+
+def test_d3_no_scratch_exemption_in_v1():
+    assert G.judge("rm -rf /tmp/scratch-1/out", "bash").decision == P     # alone: allowed, checked
+    assert G.judge("rm -rf /tmp/a && rm -rf /tmp/b", "bash").decision == D  # chained: refused
+
+
+@pytest.mark.parametrize("line", ["rm -rf build 2>/dev/null", "rm -rf build > /dev/null 2>&1",
+                                  "rm -rf node_modules &", "dz safedel --yes build > /dev/null 2>&1"])
+def test_d4_discarded_or_backgrounded_deletes_are_refused(line):
+    assert G.judge(line, "bash").decision == D
+
+
+@pytest.mark.parametrize("shell, line, decision", [
+    ("bash", "git status && git checkout -- src/a.py", D),     # D5: unconditional in a chain
+    ("bash", "git status && git restore src/a.py", D),
+    ("pwsh", "Get-ChildItem x; Remove-Item -Recurse x", D),
+    ("bash", "git commit --amend --no-edit && git push --force-with-lease", D),
+    ("bash", "git commit --amend --no-edit && git push --force-with-lease --force-if-includes", A),
+    ("bash", "git push --force-with-lease --force-if-includes --force", P),   # an extra --force undoes it
+    ("bash", "git push --force-with-lease --force-if-includes origin +main", P),
+])
+def test_d5_lease_with_includes_is_self_checking_the_rest_unconditional(shell, line, decision):
+    assert G.judge(line, shell).decision == decision
+
+
+def test_guard_imports_only_the_standard_library():
+    """The hook runs `python -I _guard.py`; a third-party or package import would fail there,
+    and importing the library would cost about 0.4 s per tool call."""
+    import ast
+    with open(GUARD_PATH, encoding="utf-8") as fh:
+        tree = ast.parse(fh.read())
+    names = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            names.update(a.name.split(".")[0] for a in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module and not node.level:
+            names.add(node.module.split(".")[0])
+    stdlib = set(getattr(sys, "stdlib_module_names", ())) | {"__future__"}
+    assert names and names <= stdlib, sorted(names - stdlib)
+
+
+def test_exit_codes_agree_with_safedel():
+    """Two definitions on purpose (the hook cannot import the package); they must not drift."""
+    from dazzlecmd_lib.core.safedel import _verdict
+    for name in ("EXIT_OK", "EXIT_ERROR", "EXIT_USAGE", "EXIT_REFUSED", "EXIT_PARTIAL",
+                 "EXIT_BLOCKED", "EXIT_POSTCONDITION"):
+        assert getattr(G, name) == getattr(_verdict, name), name
+    assert G.EXIT_CODES == _verdict.EXIT_CODES

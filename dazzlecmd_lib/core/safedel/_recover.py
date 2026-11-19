@@ -382,6 +382,72 @@ def _size_mismatch(entry: TrashEntry, content_path: str) -> Optional[str]:
             f"file has {actual}")
 
 
+def _move_back(content_path: str, target: str) -> str:
+    """Put stored content back at ``target``. Returns ``"rename"`` or ``"copy"``.
+
+    A rename first, symmetric with staging: on one drive it is a single
+    directory-entry change, so a folder comes back with every file and
+    subfolder inside it exactly as it was stored -- creation times included.
+    Only when the trash and the target are on different drives (``EXDEV``)
+    is the content copied and the stored copy removed afterwards; a folder
+    copied that way gets new creation times for what is inside it, which the
+    caller reports. Any other rename failure is raised: nothing is copied,
+    and the content stays in the trash.
+    """
+    import errno
+    try:
+        os.rename(content_path, target)
+        return "rename"
+    except OSError as exc:
+        cross_device = (exc.errno == errno.EXDEV
+                        or getattr(exc, "winerror", None) == 17)
+        if not cross_device:
+            raise
+    if os.path.isdir(content_path) and not os.path.islink(content_path):
+        from dazzle_filekit.operations import copy_tree_preserving_links
+        copy_tree_preserving_links(content_path, target)
+        shutil.rmtree(content_path)
+    else:
+        shutil.copy2(content_path, target)
+        os.unlink(content_path)
+    return "copy"
+
+
+def _times_report(entry: TrashEntry, target: str, how: str) -> str:
+    """One line saying whether the recovered item's timestamps match the
+    ones recorded when it was deleted. Compares the item itself (its
+    modification time, and its creation time where the record has one);
+    what holds for a folder's contents follows from HOW it came back."""
+    recorded = entry.stat if isinstance(entry.stat, dict) else {}
+    try:
+        now = os.lstat(target)
+    except OSError as exc:
+        return f"times NOT verified: {target} could not be read ({exc})"
+    off = []
+    if recorded.get("st_mtime") is not None and \
+            abs(float(recorded["st_mtime"]) - now.st_mtime) > 2.0:
+        off.append("modification time")
+    created_then = recorded.get("st_birthtime")
+    created_now = getattr(now, "st_birthtime", None)
+    if created_then is None and sys.platform == "win32":
+        created_then, created_now = recorded.get("st_ctime"), now.st_ctime
+    if created_then is not None and created_now is not None and \
+            abs(float(created_then) - created_now) > 2.0:
+        off.append("creation time")
+    if not recorded:
+        return "times not verified: the manifest holds no timestamps for it"
+    if off:
+        return ("WARNING: times differ from the record: "
+                + " and ".join(off))
+    inside = ""
+    if entry.is_dir:
+        inside = ("; moved back whole, so everything inside it is as it was"
+                  if how == "rename" else
+                  "; copied back from another drive, so files and folders "
+                  "inside it have new creation times")
+    return f"times verified{inside}"
+
+
 def _mtime_note(entry: TrashEntry, content_path: str) -> Optional[str]:
     """A note when a stored FILE's modification time differs from the one
     recorded at delete time, or None. Only a note: a copy across drives or
@@ -653,8 +719,10 @@ def _recover_entry(
 
     # Ensure parent directory exists
     parent = os.path.dirname(target)
+    parent_created = None
     if parent and not os.path.exists(parent):
         os.makedirs(parent, exist_ok=True)
+        parent_created = parent
 
     # Recover based on type
     try:
@@ -695,23 +763,28 @@ def _recover_entry(
                 return False
 
         elif content_path and os.path.exists(content_path):
-            # Move content back
-            if os.path.isdir(content_path):
-                from dazzle_filekit.operations import copy_tree_preserving_links
-                copy_tree_preserving_links(content_path, target)
-                shutil.rmtree(content_path)
-            else:
-                shutil.copy2(content_path, target)
-                os.unlink(content_path)
+            if parent_created:
+                print(f"  NOTE: {parent_created} no longer existed and was "
+                      f"created; its own timestamps are new.")
+            # Move content back: a rename when the trash and the target are
+            # on one drive (everything inside keeps its timestamps), a copy
+            # only when they are not.
+            how = _move_back(content_path, target)
 
-            # Apply preserved metadata
-            if entry.metadata:
+            # Apply preserved metadata -- only after a COPY. A rename brings
+            # the item back with its timestamps, attributes and permissions
+            # intact; writing the recorded values over them can only lose
+            # precision (measured 2026-11-18: a creation time came back
+            # rounded to the millisecond).
+            if entry.metadata and how == "copy":
                 try:
                     apply_file_metadata(target, entry.metadata)
-                except Exception:
-                    pass  # Best effort
+                except Exception as exc:  # noqa: BLE001 - reported, not hidden
+                    print(f"  WARNING: {target}: its recorded metadata could "
+                          f"not be applied ({exc}).", file=sys.stderr)
 
             print(f"  Recovered: {target}")
+            print(f"    {_times_report(entry, target, how)}")
 
         else:
             print(

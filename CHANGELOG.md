@@ -8,6 +8,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 This repository is the standalone home of the library, extracted from the dazzlecmd monorepo at v0.8.55 (2026-06-24). Commit history through 0.8.55 lives in the [dazzlecmd](https://github.com/DazzleTools/dazzlecmd) repository's git log (under `packages/dazzlecmd-lib/`); this CHANGELOG and all subsequent history continue here.
 
+## [0.10.40-alpha] - 2026-11-18
+
+safedel recovery moves things back when it can, and says whether the timestamps match.
+
+### Changed
+- **Recovery renames first; it copies only across drives.** Until now, recovering a folder copied it out of the trash and deleted the stored copy, so every file and subfolder inside came back as a new file with a new creation time (the folder itself, and single files, were restored). Now recovery does what staging does: a rename when the trash and the target are on one drive, so a folder returns with its contents exactly as stored. Only when they are on different drives is the content copied, and the report says so. A rename that fails for any other reason copies nothing: the item is reported as an error and stays in the trash.
+- **Recorded metadata is re-applied only after a copy.** After a rename the item already has its timestamps, attributes and permissions; writing the recorded values over them lost sub-millisecond precision of the creation time.
+
+### Added
+- **A line after each recovered item saying whether its times match the record:** `times verified` (for a folder: `moved back whole, so everything inside it is as it was`, or `copied back from another drive, so files and folders inside it have new creation times`), or `WARNING: times differ from the record: ...` naming what differs.
+- **A note when the original parent folder had to be created**, since that folder's own timestamps are new.
+- **A metadata failure is reported.** Recorded metadata that cannot be applied after a cross-drive recovery printed nothing before (`except Exception: pass`); it is now a warning naming the item and the reason. The content is recovered either way.
+
+### Tests
+- `tests/test_core_safedel_recovery_fidelity.py` (9): identity is proven by file id, not by time -- a renamed file keeps its id, a copied one gets a new one. Audited by reverting 8 behaviours on a scratch copy; each turns a test red. The suite passes on Windows.
+
 ## [0.10.39-alpha] - 2026-11-18
 
 safedel gives every item its own place in the trash, so deleting two things with the same name in one call works instead of being refused. Recovery puts each one back where it came from.

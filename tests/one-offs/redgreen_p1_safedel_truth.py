@@ -232,6 +232,23 @@ MUTATIONS = [
      [(SD + "_recover.py", '        print(f"\\n  Trash store: {only}")', "        pass")], ""),
     ("recover: a dry run recovers for real",
      [(SD + "_recover.py", '    if dry_run:\n        print(f"  Would recover: {entry.original_name}")', '    if False:\n        print(f"  Would recover: {entry.original_name}")')], ""),
+    # -- 0.10.40: recovery moves things back; times are checked and reported --
+    ("fidelity: a folder is copied back even on one drive",
+     [(SD + "_recover.py", '        os.rename(content_path, target)\n        return "rename"', '        raise OSError(errno.EXDEV, "simulated")')], ""),
+    ("fidelity: any rename failure falls back to copying",
+     [(SD + "_recover.py", "        if not cross_device:\n            raise\n", "        if False:\n            raise\n")], ""),
+    ("fidelity: recorded metadata is re-applied after a rename",
+     [(SD + "_recover.py", '            if entry.metadata and how == "copy":', "            if entry.metadata:")], ""),
+    ("fidelity: a metadata failure is not shown",
+     [(SD + "_recover.py", 'f"not be applied ({exc}).", file=sys.stderr)', 'f"not be applied ({exc}).", file=open(os.devnull, "w"))')], ""),
+    ("fidelity: a created parent folder is not mentioned",
+     [(SD + "_recover.py", "            if parent_created:\n                print(", "            if False:\n                print(")], ""),
+    ("fidelity: every recovery claims it created the parent",
+     [(SD + "_recover.py", "    parent_created = None\n", "    parent_created = parent\n")], ""),
+    ("fidelity: times that differ are reported as verified",
+     [(SD + "_recover.py", '    if off:\n        return ("WARNING: times differ', '    if False:\n        return ("WARNING: times differ')], ""),
+    ("fidelity: a copied folder is said to have moved back whole",
+     [(SD + "_recover.py", '                  if how == "rename" else', "                  if True else")], ""),
     # -- 0.10.39: the common-base layout, and what recovery owes it --
     ("layout: items keep their bare names (the layout step is skipped)",
      [(SD + "_store.py", "        self._plan_layout(plan)\n", "        pass\n")], ""),
@@ -325,7 +342,8 @@ def build_copy(root):
     os.makedirs(os.path.join(lib, "tests"))
     for name in ("conftest.py", "test_core_safedel_truth.py",
                  "test_core_safedel_worktree.py",
-                 "test_core_safedel_layout.py"):
+                 "test_core_safedel_layout.py",
+                 "test_core_safedel_recovery_fidelity.py"):
         shutil.copy2(os.path.join(LIB_REPO, "tests", name), os.path.join(lib, "tests", name))
     os.makedirs(os.path.join(tool, "tests"))
     shutil.copy2(os.path.join(TOOL_DIR, "safedel.py"), os.path.join(tool, "safedel.py"))

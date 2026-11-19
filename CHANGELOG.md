@@ -8,6 +8,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 This repository is the standalone home of the library, extracted from the dazzlecmd monorepo at v0.8.55 (2026-06-24). Commit history through 0.8.55 lives in the [dazzlecmd](https://github.com/DazzleTools/dazzlecmd) repository's git log (under `packages/dazzlecmd-lib/`); this CHANGELOG and all subsequent history continue here.
 
+## [0.10.43-alpha] - 2026-11-19
+
+### Changed
+- **safedel computes a path's other-runtime name with dazzle-filekit's portable path key** instead of a private regular expression. This is the `original_path_alt` a manifest records so a batch written on Windows can be recovered from WSL, and the reverse. Stored values do not change for the absolute, normalised paths safedel passes; the two methods were compared over every entry in one machine's trash stores and agreed on all of them. They differ only for input that is not normalised (`.` and `..` segments, doubled or trailing separators, a bare drive root).
+
+### Tests
+- `tests/test_core_safedel_alt_path.py`: both directions, the paths that have no other-runtime name, and the value a written manifest carries. The function had no test before.
+
 ## [0.10.42-alpha] - 2026-11-18
 
 safedel can recover a link whose target is gone.

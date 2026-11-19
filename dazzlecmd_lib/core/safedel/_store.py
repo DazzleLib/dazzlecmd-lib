@@ -98,28 +98,40 @@ def _compute_alt_path(path: str) -> Optional[str]:
     On Windows: C:\\Users\\foo -> /mnt/c/Users/foo (WSL form)
     On Linux/WSL: /mnt/c/Users/foo -> C:\\Users\\foo (Windows form)
 
-    Uses filekit's normalize_cross_platform_path which handles the conversion.
+    The conversion is filekit's portable path key (``dazzle_filekit.portable``,
+    since 0.10.43): the path is encoded to the key with its own flavor and
+    decoded for the other runtime. Until then this was a private regex. The
+    two agree on every normalised drive path -- measured over the 1,978
+    entries in this machine's trash stores on 2026-11-19 by
+    ``tests/one-offs/probe_alt_path_regex_vs_filekit_key.py`` -- and differ
+    only where the input is not normalised: the key drops ``.`` segments,
+    doubled and trailing separators, folds ``..`` lexically, and writes a bare
+    drive root as ``C:\\`` / ``/mnt/c``. safedel passes absolute, normalised
+    paths, so stored values do not change.
+
     Returns None if no sensible alternate form exists (e.g., a Linux path on
-    Linux with no Windows equivalent, or a VolFs path inside WSL2).
+    Linux with no Windows equivalent, a UNC or ``\\\\?\\`` path, a
+    drive-relative path, or a path the key refuses).
     """
     try:
         from dazzle_filekit.utils.compat import is_windows
+        from dazzle_filekit.portable import (
+            decode_portable_path, encode_portable_path,
+        )
         import re
 
         if is_windows():
             # Native form is C:\..., compute WSL form /mnt/c/...
-            m = re.match(r"^([a-zA-Z]):[\\/](.*)$", path)
-            if m:
-                drive = m.group(1).lower()
-                rest = m.group(2).replace("\\", "/")
-                return f"/mnt/{drive}/{rest}"
+            if re.match(r"^[a-zA-Z]:[\\/]", path):
+                return decode_portable_path(
+                    encode_portable_path(path, flavor="windows"), runtime="wsl")
         else:
             # Native form might be /mnt/c/... or /c/..., compute Windows form
-            m = re.match(r"^/mnt/([a-zA-Z])(/.*)?$", path)
-            if m:
-                drive = m.group(1).upper()
-                rest = (m.group(2) or "").replace("/", "\\")
-                return f"{drive}:{rest}"
+            if re.match(r"^/mnt/[a-zA-Z](/.*)?$", path):
+                return decode_portable_path(
+                    encode_portable_path(path, flavor="wsl"), runtime="windows")
+            # The MSYS-style /c/... form is not one the key knows; it is kept
+            # exactly as it was.
             m = re.match(r"^/([a-zA-Z])(/.*)?$", path)
             if m and len(m.group(1)) == 1:
                 drive = m.group(1).upper()

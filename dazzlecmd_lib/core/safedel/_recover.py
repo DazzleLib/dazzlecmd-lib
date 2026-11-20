@@ -45,21 +45,18 @@ def _resolve_folders(
     """Resolve user arguments to matching TrashFolder objects across all stores."""
     from ._timepattern import time_pattern_to_glob, get_most_recent_folder
 
-    # --contains and --path search: scan all manifests
+    # --contains / --path: the batches holding a matching entry. With a batch
+    # named as well (`recover 2026-11-19__23-20-30 --contains x`), only within
+    # that batch -- until 0.10.50 the name was ignored here and every store
+    # was searched. Which ENTRIES are then acted on is the caller's business
+    # (cmd_recover recovers only the matching ones; see _entry_matches).
     if contains or path_pattern:
-        all_folders = store.list_entries()
-        results = []
-        for folder in all_folders:
-            for entry in folder.entries:
-                if contains and _fnmatch(entry.original_name, contains):
-                    results.append(folder)
-                    break
-                if path_pattern:
-                    orig = entry.original_path.replace("\\", "/")
-                    if _fnmatch(orig, path_pattern) or _fnmatch(entry.original_path, path_pattern):
-                        results.append(folder)
-                        break
-        return results
+        if positional_args:
+            candidates = _resolve_folders(store, positional_args, age_filter=age_filter)
+        else:
+            candidates = store.list_entries()
+        return [f for f in candidates
+                if any(_entry_matches(e, contains, path_pattern) for e in f.entries)]
 
     # Time-pattern based matching
     glob_pattern = time_pattern_to_glob(positional_args)
@@ -85,6 +82,79 @@ def _resolve_folders(
         return []
 
     return store.list_entries(pattern=glob_pattern, age_filter=age_filter)
+
+
+def _entry_matches(entry: TrashEntry, contains: Optional[str],
+                   path_pattern: Optional[str]) -> bool:
+    """True when an entry matches ``--contains`` (its original name) or
+    ``--path`` (its original path, either separator)."""
+    if contains and _fnmatch(entry.original_name, contains):
+        return True
+    if path_pattern:
+        orig = entry.original_path.replace("\\", "/")
+        if _fnmatch(orig, path_pattern) or _fnmatch(entry.original_path, path_pattern):
+            return True
+    return False
+
+
+def _entry_display_size(folder: TrashFolder, entry: TrashEntry) -> Optional[int]:
+    """What ``list`` shows as an entry's size: for a folder, its contents
+    (until 0.10.50 the directory entry's own 4-8 KB was shown, which made a
+    4.3 MB folder look empty). Uses the copy-first record when there is one,
+    else walks the stored copy without following links; a file uses its stat."""
+    if entry.is_dir and entry.file_type not in _LINK_ENTRY_TYPES:
+        cf = entry.copy_first or {}
+        if isinstance(cf.get("bytes"), int):
+            return cf["bytes"]
+        stored = _content_file(folder, entry)
+        if not stored or not os.path.isdir(stored) or os.path.islink(stored):
+            return None
+        total, stack = 0, [stored]
+        while stack:
+            try:
+                with os.scandir(stack.pop()) as it:
+                    for de in it:
+                        try:
+                            st = de.stat(follow_symlinks=False)
+                        except OSError:
+                            continue
+                        if de.is_dir(follow_symlinks=False) and not (
+                                getattr(st, "st_file_attributes", 0) & 0x400):
+                            stack.append(de.path)
+                        elif de.is_file(follow_symlinks=False):
+                            total += st.st_size
+            except OSError:
+                continue
+        return total
+    if entry.stat and entry.stat.get("st_size"):
+        return entry.stat["st_size"]
+    return None
+
+
+def _mark_recovered(folder: TrashFolder, entries_and_targets) -> None:
+    """Record in the batch's manifest which entries were recovered, and where
+    to, so ``list`` and a later ``recover`` know (0.10.50). Written atomically;
+    a failure to write is reported and changes nothing else."""
+    import datetime as _dt
+    if not entries_and_targets:
+        return
+    path = os.path.join(folder.folder_path, "manifest.json")
+    try:
+        import json as _json
+        with open(path, "r", encoding="utf-8") as fh:
+            manifest = _json.load(fh)
+        now = _dt.datetime.now().isoformat(timespec="seconds")
+        done = {e.original_path: t for e, t in entries_and_targets}
+        for e_dict in manifest.get("entries", []):
+            if e_dict.get("original_path") in done:
+                e_dict["recovered_at"] = now
+                e_dict["recovered_to"] = done[e_dict["original_path"]]
+        from dazzle_filekit.operations import atomic_write_json
+        atomic_write_json(path, manifest, indent=2, default=str)
+        for e, _t in entries_and_targets:
+            e.recovered_at = now
+    except Exception as exc:  # noqa: BLE001 -- a bookkeeping write never fails a recovery
+        print(f"  NOTE: could not record the recovery in {path}: {exc}", file=sys.stderr)
 
 
 def _state_note(folder: TrashFolder) -> str:
@@ -116,7 +186,11 @@ def _remove_recovered_folder(store: TrashStore, folder: TrashFolder
         return (f"{len(left)} item(s) are still in it "
                 f"(first: {left[0]})")
     if not store.remove_folder(folder.folder_name, folder.folder_path):
-        return "it could not be removed"
+        leftover = getattr(store, "last_remove_leftover", None)
+        if leftover:
+            return (f"it could not be fully removed; what is left was renamed "
+                    f"to {leftover} so it is no longer listed as a batch")
+        return "it could not be removed (it may be in use); nothing in it was deleted"
     return None
 
 
@@ -219,9 +293,13 @@ def cmd_list(
             if entry.link_target:
                 target_str = f" -> {entry.link_target}"
             size_str = ""
-            if entry.stat and entry.stat.get("st_size"):
-                size_str = f"  ({_format_size(entry.stat['st_size'])})"
-            print(f"    {entry.original_name}  {type_str}{target_str}{size_str}")
+            size = _entry_display_size(folder, entry)
+            if size:
+                size_str = f"  ({_format_size(size)})"
+            state_str = ""
+            if entry.recovered_at:
+                state_str = f"  [recovered {entry.recovered_at[:16].replace('T', ' ')}]"
+            print(f"    {entry.original_name}  {type_str}{target_str}{size_str}{state_str}")
             print(f"    from: {entry.original_path}")
         print()
 
@@ -239,8 +317,10 @@ def _recover_folder_entries(
     metadata_only: bool = False,
     dry_run: bool = False,
     force_identity: bool = False,
+    select=None,
 ) -> Tuple[int, int]:
-    """Recover every entry in ``folder`` via ``_recover_entry``. Returns
+    """Recover every entry in ``folder`` via ``_recover_entry``, or only the
+    entries for which ``select(entry)`` is true. Returns
     ``(recovered, errors)``.
 
     The shared inner work of ``cmd_recover`` (which resolves MANY folders by
@@ -266,7 +346,15 @@ def _recover_folder_entries(
         print(f"  NOTE: {folder.folder_name} is from a run that did not "
               f"finish; recovering what it had already moved.")
     lost = _entries_that_lost_their_content(folder)
+    done = []
     for entry in folder.entries:
+        if select is not None and not select(entry):
+            continue
+        if entry.recovered_at:
+            print(f"  Skipped: {entry.original_path} -- already recovered "
+                  f"({entry.recovered_at[:16].replace('T', ' ')}"
+                  f"{', to ' + entry.recovered_to if entry.recovered_to else ''})")
+            continue
         if id(entry) in lost:
             # A batch written before same-named items got their own places:
             # several entries point at ONE stored item, and it can only be
@@ -291,8 +379,11 @@ def _recover_folder_entries(
             continue        # never staged: neither recovered nor a failure
         if outcome:
             recovered += 1
+            if not dry_run and not metadata_only:
+                done.append((entry, to_path or entry.original_path))
         else:
             errors += 1
+    _mark_recovered(folder, done)
     return recovered, errors
 
 
@@ -519,6 +610,12 @@ def cmd_recover(
     total_recovered = 0
     total_errors = 0
     kept_folders = 0
+    select = None
+    if contains or path_pattern:
+        # Only the matching items are recovered (until 0.10.50 every item of
+        # each matching batch was).
+        def select(entry):
+            return _entry_matches(entry, contains, path_pattern)
 
     for folder in folders:
         if not folder:
@@ -527,10 +624,19 @@ def cmd_recover(
         rec, err = _recover_folder_entries(
             store, folder,
             to_path=to_path, metadata_only=metadata_only, dry_run=dry_run,
-            force_identity=force_identity,
+            force_identity=force_identity, select=select,
         )
         total_recovered += rec
         total_errors += err
+
+        if select is not None and not all(select(e) for e in folder.entries):
+            # Other items were deliberately left in this batch; keeping it is
+            # the expected outcome, not a failure.
+            if not dry_run:
+                others = sum(1 for e in folder.entries if not select(e))
+                print(f"  Kept trash folder {folder.folder_name}: {others} other "
+                      f"item(s) not selected are still in it")
+            continue
 
         # If everything so far recovered cleanly and not dry-run, remove the
         # trash folder. (Cumulative `total_errors` is intentional/pre-existing:

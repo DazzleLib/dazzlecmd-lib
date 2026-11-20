@@ -187,6 +187,10 @@ class TrashEntry:
     # Size in bytes of a staged FILE as it sat in the trash when staged.
     # None for folders, links, and batches written before 0.10.39.
     staged_size: Optional[int] = None
+    # When this entry was recovered out of a batch that was kept (0.10.50):
+    # set by recovery, read by list and by a later recover. None otherwise.
+    recovered_at: Optional[str] = None
+    recovered_to: Optional[str] = None
 
 
 @dataclass
@@ -330,6 +334,7 @@ class TrashStore:
                  registry_path: Optional[str] = None,
                  junction_registry_path: Optional[str] = None):
         self.store_path = store_path or get_trash_dir()
+        self.last_remove_leftover: Optional[str] = None
         self.registry_path = registry_path  # None = global default
         # The junction registry (links recorded by the tools that create
         # them). With an explicit registry_path -- test isolation -- nothing
@@ -1020,26 +1025,69 @@ class TrashStore:
         one store could delete an unrelated, unrecovered batch in another.
         Callers that hold a ``TrashFolder`` must pass its path.
         """
-        import shutil as _shutil
+        self.last_remove_leftover = None
         if folder_path is not None:
             if os.path.basename(folder_path.rstrip("\\/")) != folder_name:
                 return False
             if not os.path.isdir(folder_path) or os.path.islink(folder_path):
                 return False
-            try:
-                _shutil.rmtree(folder_path)
-                return True
-            except OSError:
-                return False
+            return self._remove_tree_whole(folder_path)
         for store_path in self._all_store_paths():
             candidate = os.path.join(store_path, folder_name)
             if os.path.isdir(candidate):
-                try:
-                    _shutil.rmtree(candidate)
-                    return True
-                except OSError:
-                    return False
+                return self._remove_tree_whole(candidate)
         return False
+
+    REMOVING_PREFIX = "_removing__"
+
+    def _remove_tree_whole(self, path: str) -> bool:
+        """Remove a batch folder so that a failure never leaves a half-deleted
+        batch that still looks like a batch.
+
+        Until 0.10.50 this was a plain ``shutil.rmtree``. A spent batch can
+        still hold ``copy-first/``, the verified extra copies, and a copy of a
+        git repository has read-only files (its object files). rmtree stopped
+        at the first one, after deleting everything that sorted before it, and
+        the batch stayed listed with its copy-first half gone (seen
+        2026-11-19 on a 473-file repository copy: 342 files were left).
+
+        Now: (1) the folder is renamed to ``_removing__<name>`` first, in the
+        same store, so it no longer matches a batch name and ``list`` /
+        ``recover`` stop offering it; if the rename fails (the folder is in
+        use), nothing at all is deleted. (2) The renamed tree is removed with
+        read-only files made writable and retried. (3) If removal still fails,
+        the renamed folder is left and its path is in
+        ``self.last_remove_leftover`` for the caller to report.
+
+        Nothing here follows a link: shutil.rmtree does not enter symlinks or
+        (Python 3.8+ on Windows) junctions, and a spent batch's ``content/`` is
+        empty before this is called.
+        """
+        import shutil as _shutil
+        import stat as _stat
+        parent, name = os.path.split(path.rstrip("\\/"))
+        doomed = os.path.join(parent, "%s%s__%d" % (self.REMOVING_PREFIX, name, os.getpid()))
+        try:
+            os.rename(path, doomed)
+        except OSError:
+            return False
+
+        def _make_writable_and_retry(func, target, _exc):
+            try:
+                os.chmod(target, _stat.S_IWRITE | _stat.S_IREAD)
+            except OSError:
+                raise _exc if isinstance(_exc, BaseException) else _exc[1]
+            func(target)
+
+        try:
+            if sys.version_info >= (3, 12):
+                _shutil.rmtree(doomed, onexc=_make_writable_and_retry)
+            else:
+                _shutil.rmtree(doomed, onerror=_make_writable_and_retry)
+            return True
+        except OSError:
+            self.last_remove_leftover = doomed
+            return False
 
     @staticmethod
     def leftover_content(folder: "TrashFolder") -> List[str]:
@@ -1228,6 +1276,8 @@ class TrashStore:
                         warnings=e_dict.get("warnings", []),
                         copy_first=e_dict.get("copy_first"),
                         staged_size=e_dict.get("staged_size"),
+                        recovered_at=e_dict.get("recovered_at"),
+                        recovered_to=e_dict.get("recovered_to"),
                     ))
             except (ValueError, OSError, AttributeError, TypeError) as exc:
                 # json.JSONDecodeError is a ValueError. An unreadable

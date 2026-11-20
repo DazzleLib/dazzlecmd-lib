@@ -58,12 +58,16 @@ def _tree(tmp_path):
 
 
 def _rename_fails_in(monkeypatch, trash_dir, exc):
-    """Make os.rename raise ``exc`` for sources inside ``trash_dir`` only."""
+    """Make os.rename raise ``exc`` for sources inside ``trash_dir`` going
+    somewhere outside it -- a move to another drive. A rename that stays inside
+    the trash (0.10.50's rename-before-removal of a spent batch) is on one
+    drive and succeeds, as it would for real."""
     real = os.rename
     prefix = os.path.normcase(str(trash_dir)) + os.sep
 
     def fake(src, dst, *a, **k):
-        if os.path.normcase(str(src)).startswith(prefix):
+        if (os.path.normcase(str(src)).startswith(prefix)
+                and not os.path.normcase(str(dst)).startswith(prefix)):
             raise exc
         return real(src, dst, *a, **k)
     monkeypatch.setattr(_recover.os, "rename", fake)

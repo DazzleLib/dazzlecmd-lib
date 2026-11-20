@@ -8,6 +8,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 This repository is the standalone home of the library, extracted from the dazzlecmd monorepo at v0.8.55 (2026-06-24). Commit history through 0.8.55 lives in the [dazzlecmd](https://github.com/DazzleTools/dazzlecmd) repository's git log (under `packages/dazzlecmd-lib/`); this CHANGELOG and all subsequent history continue here.
 
+## [0.10.50-alpha] - 2026-11-20
+
+### Fixed
+- **Removing a recovered batch could half-delete its copy-first copies.** After every item of a batch is recovered, safedel removes the batch folder, which still holds the verified copy-first copies. It used a plain delete that stopped at the first read-only file -- every copy of a git repository has them -- after deleting everything that came before it, so a copy was left partly gone and the batch stayed listed. Removal now clears read-only flags as it goes, and renames the batch out of the list before deleting it: if removal still fails, what is left is named `_removing__<batch>` and is no longer offered by `list` or `recover`; if the batch is in use and cannot even be renamed, nothing in it is deleted.
+- **`recover --contains NAME` recovered every item of each matching batch, and ignored the batch named before it.** It now recovers only the items whose name matches, and only from the named batch (or from every batch when none is named). The batch is kept for the items not selected, and that is reported as expected rather than as a failure. `--path` follows the same rules.
+- **`list` showed a folder's size as its directory entry (4-8 KB).** It now shows the size of what the folder held.
+
+### Added
+- **A recovered item is recorded in its batch's manifest** (`recovered_at`, `recovered_to`) when the batch is kept, so `list` marks it `[recovered ...]` and a later `recover` of the batch skips it instead of reporting it missing.
+
+### Tests
+- `tests/test_core_safedel_real_repo_round_trip.py`: a folder shaped like a git repository (many files, a nested `.git` with read-only objects) staged with copy-first and recovered, the spent batch removed with nothing left over; a removal that fails; a batch in use; `--contains` within a named batch beside another batch holding the same name; the folder size in `list`.
+
 ## [0.10.49-alpha] - 2026-11-19
 
 ### Changed

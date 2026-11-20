@@ -62,13 +62,16 @@ def _is_link(path):
 
 
 def _cross_device(monkeypatch, module, under):
-    """Make ``module``'s os.rename raise EXDEV for sources under ``under``."""
+    """Make ``module``'s os.rename raise EXDEV for sources under ``under``
+    going outside it. A rename that stays under ``under`` is on one drive and
+    succeeds (0.10.50 renames a spent batch inside its store before removal)."""
     real = os.rename
     prefix = os.path.normcase(str(under)) + os.sep
 
     def fake(src, dst, *a, **k):
         s = os.path.normcase(str(src))
-        if s.startswith(prefix) or s == prefix.rstrip(os.sep):
+        d = os.path.normcase(str(dst))
+        if (s.startswith(prefix) or s == prefix.rstrip(os.sep)) and not d.startswith(prefix):
             raise OSError(errno.EXDEV, "Invalid cross-device link")
         return real(src, dst, *a, **k)
     monkeypatch.setattr(module.os, "rename", fake)

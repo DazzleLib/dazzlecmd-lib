@@ -175,6 +175,53 @@ def test_contains_recovers_only_the_named_item_from_the_named_batch(tmp_path, ca
     assert not os.path.exists(os.path.join(str(tmp_path / "trash"), result.folder_name))
 
 
+def test_a_failed_copy_first_leaves_no_partial_copy_behind(tmp_path, monkeypatch):
+    """Found by the 2026-11-20 tester sweep: when copy-first failed partway, the
+    cleanup of the partial copy stopped silently at a read-only file and left
+    it in the trash. The original never moves either way."""
+    from dazzlecmd_lib.core.safedel import _copyfirst
+    src = tmp_path / "work" / "repo"
+    src.mkdir(parents=True)
+    ro = src / "a-readonly-object"                                 # copied first (sorted)
+    ro.write_text("object")
+    os.chmod(ro, stat.S_IREAD)
+    for i in range(3):
+        (src / ("z%02d.txt" % i)).write_text("x" * (i + 1))
+
+    real, calls = _copyfirst._sha256, {"n": 0}
+
+    def flaky(p):                                                  # fails on the 3rd file
+        calls["n"] += 1
+        if calls["n"] == 5:
+            raise OSError("simulated read error while verifying")
+        return real(p)
+    monkeypatch.setattr(_copyfirst, "_sha256", flaky)
+
+    store = _store(tmp_path)
+    result = store.trash([str(src)], copy_first=True, copy_first_max=10 ** 9)
+
+    assert not result.success
+    assert sorted(os.listdir(src)) == ["a-readonly-object", "z00.txt", "z01.txt", "z02.txt"]
+    left = [os.path.join(d, f) for d, _s, fs in os.walk(str(tmp_path / "trash"))
+            for f in fs if f != "manifest.json"]
+    assert left == [], left
+
+
+def test_a_cleanup_that_still_fails_is_reported_not_swallowed(tmp_path, monkeypatch):
+    from dazzlecmd_lib.core.safedel import _copyfirst
+    partial = tmp_path / "copy-first" / "repo"
+    partial.mkdir(parents=True)
+    (partial / "f.txt").write_text("x")
+
+    import shutil
+
+    def stuck(path, *a, **k):
+        raise PermissionError("simulated: in use")
+    monkeypatch.setattr(shutil, "rmtree", stuck)
+
+    assert _copyfirst._discard(str(partial)) == str(partial)
+
+
 def test_list_shows_a_folders_contents_size_not_its_entry_size(tmp_path, capsys):
     src = tmp_path / "work"
     src.mkdir()

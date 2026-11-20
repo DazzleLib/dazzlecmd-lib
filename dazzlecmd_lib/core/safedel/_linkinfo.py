@@ -66,6 +66,23 @@ class LinkInfo:
                 % (self.path, self.link_type, self.target, self.broken, self.is_dir))
 
 
+_FILE_ATTRIBUTE_DIRECTORY = 0x10
+
+
+def _link_node_is_directory(lst: os.stat_result) -> bool:
+    """True for a Windows DIRECTORY symlink, read from the link itself.
+
+    ``os.path.isdir`` follows the link and is False once its target is gone,
+    so a broken directory symlink used to be recorded as a file symlink and
+    came back from recovery as one (``<SYMLINK>`` instead of ``<SYMLINKD>``;
+    found by the 2026-11-20 tester sweep, fixed in 0.10.51). On Windows a
+    symlink is created as a file link or a directory link, and the link node
+    carries ``FILE_ATTRIBUTE_DIRECTORY`` accordingly, whether or not the
+    target exists. POSIX symlinks have no such flavour: False there.
+    """
+    return bool(getattr(lst, "st_file_attributes", 0) & _FILE_ATTRIBUTE_DIRECTORY)
+
+
 def _host_detail(path: str) -> Optional[Any]:
     """The host package's richer record for ``path``, or None when the host
     engine is not importable or fails. Used only for warning text."""
@@ -110,7 +127,8 @@ def detect_link(path: str) -> Optional[LinkInfo]:
             abs_path, name, LINK_SYMLINK, target=target,
             broken=target is not None and not os.path.exists(path),
             inode=inode, size=size,
-            is_dir=stat.S_ISDIR(lst.st_mode) or os.path.isdir(path))
+            is_dir=(stat.S_ISDIR(lst.st_mode) or os.path.isdir(path)
+                    or _link_node_is_directory(lst)))
 
     if kind == LINK_JUNCTION:
         target = read_link_target(path)

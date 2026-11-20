@@ -62,6 +62,31 @@ def test_a_broken_file_symlink_is_deleted_and_recovered(tmp_path, capsys):
     assert os.readlink(link).rstrip("\\/").endswith("never-existed.txt")   # ... pointing where it did
 
 
+@pytest.mark.skipif(not WINDOWS, reason="symlink flavours (file / directory) are Windows-only")
+def test_a_broken_directory_symlink_comes_back_as_a_directory_symlink(tmp_path, capsys):
+    """Found by the 2026-11-20 tester sweep: recorded as a file symlink because
+    its target was gone, and recovered as one (`<SYMLINK>`, not `<SYMLINKD>`)."""
+    link = tmp_path / "src" / "old-build"
+    _symlink_or_skip(tmp_path / "build-that-was-deleted", link, is_dir=True)
+    assert os.lstat(link).st_file_attributes & 0x10                # a directory link, target gone
+
+    c = sd.classify(str(link))
+    assert c.file_type.value == "broken_link" and c.is_dir
+
+    store = _store_in(tmp_path)
+    result = store.trash([str(link)])
+    assert result.success, (result.errors, result.postcondition_failures)
+    assert not os.path.lexists(link)
+
+    rc = sd.recover_folder(store, result.folder_name)
+    out = capsys.readouterr()
+
+    assert rc == 0, out.out + out.err
+    assert os.path.islink(link)
+    assert os.lstat(link).st_file_attributes & 0x10, "came back as a FILE symlink"
+    assert os.readlink(link).rstrip("\\/").endswith("build-that-was-deleted")
+
+
 @pytest.mark.skipif(not WINDOWS, reason="junctions are Windows-only")
 def test_a_junction_whose_target_is_gone_is_still_treated_as_a_link(tmp_path, capsys):
     import _winapi

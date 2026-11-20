@@ -8,6 +8,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 This repository is the standalone home of the library, extracted from the dazzlecmd monorepo at v0.8.55 (2026-06-24). Commit history through 0.8.55 lives in the [dazzlecmd](https://github.com/DazzleTools/dazzlecmd) repository's git log (under `packages/dazzlecmd-lib/`); this CHANGELOG and all subsequent history continue here.
 
+## [0.10.51-alpha] - 2026-11-20
+
+The two known issues of 0.10.50 that were safedel's own.
+
+### Fixed
+- **A broken directory symlink was recovered as a file symlink.** Its target being gone, safedel recorded it as a file link, and recovery recreated it as one (`<SYMLINK>` instead of `<SYMLINKD>`); once the target folder existed again, the link could not be opened as a folder. safedel now reads the directory flag from the link itself, which Windows keeps whether or not the target exists. (A broken directory symlink deleted with 0.10.50 or earlier is still recorded as a file link.)
+- **If copy-first failed partway, its cleanup could leave the partial copy in the trash.** The cleanup stopped at the first read-only file and hid the failure. It now clears read-only flags as it goes; a cleanup that still fails is named in the error. The original was never affected: it does not move when copy-first fails.
+
+### Tests
+- A broken directory symlink round trip; a copy-first failure inside a folder holding a read-only file; a cleanup that cannot finish is reported.
+
 ## [0.10.50-alpha] - 2026-11-20
 
 ### Fixed

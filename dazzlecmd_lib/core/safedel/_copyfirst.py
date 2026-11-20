@@ -239,10 +239,12 @@ def copy_first(path: str, dest: str, is_dir: bool) -> Dict[str, Any]:
                 raise OSError("copy differs from the original: %s" % path)
             files, total = 1, os.lstat(path).st_size
     except Exception as exc:
-        _discard(dest)
-        if isinstance(exc, OSError):
+        leftover = _discard(dest)
+        note = ("" if leftover is None else
+                "; the partial copy could not be removed and is still at %s" % leftover)
+        if isinstance(exc, OSError) and not note:
             raise
-        raise OSError("copy-first failed for %s: %s" % (path, exc))
+        raise OSError("copy-first failed for %s: %s%s" % (path, exc, note))
     record = {"algorithm": "SHA256", "files": files, "bytes": total,
               "verified": True}
     if links:
@@ -250,17 +252,42 @@ def copy_first(path: str, dest: str, is_dir: bool) -> Dict[str, Any]:
     return record
 
 
-def _discard(dest: str) -> None:
+def _make_writable_and_retry(func, target, exc):
+    """rmtree error handler: clear the read-only flag and try once more. A
+    copy keeps the read-only flag (shutil.copy2), and a copy of a git
+    repository has read-only object files."""
+    try:
+        os.chmod(target, stat.S_IWRITE | stat.S_IREAD)
+    except OSError:
+        raise exc if isinstance(exc, BaseException) else exc[1]
+    func(target)
+
+
+def _discard(dest: str) -> Optional[str]:
     """Remove a partial copy. ``dest`` is always inside the batch folder this
-    run created, under ``copy-first/``."""
+    run created, under ``copy-first/``. Returns None when it is gone, or the
+    path that is left.
+
+    Until 0.10.51 this was a plain rmtree whose errors were swallowed, so a
+    read-only file in the partial copy stopped the cleanup silently and the
+    partial copy stayed in the trash (found by the 2026-11-20 tester sweep).
+    """
     try:
         st = os.lstat(dest)
     except OSError:
-        return
+        return None
     try:
         if stat.S_ISDIR(st.st_mode) and not _is_link(st):
-            shutil.rmtree(dest)
+            if sys.version_info >= (3, 12):
+                shutil.rmtree(dest, onexc=_make_writable_and_retry)
+            else:
+                shutil.rmtree(dest, onerror=_make_writable_and_retry)
         else:
-            os.unlink(dest)
+            try:
+                os.unlink(dest)
+            except PermissionError:
+                os.chmod(dest, stat.S_IWRITE | stat.S_IREAD)
+                os.unlink(dest)
     except OSError:
-        pass
+        return dest if os.path.lexists(dest) else None
+    return None

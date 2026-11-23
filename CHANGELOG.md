@@ -8,6 +8,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 This repository is the standalone home of the library, extracted from the dazzlecmd monorepo at v0.8.55 (2026-06-24). Commit history through 0.8.55 lives in the [dazzlecmd](https://github.com/DazzleTools/dazzlecmd) repository's git log (under `packages/dazzlecmd-lib/`); this CHANGELOG and all subsequent history continue here.
 
+## [0.10.53-alpha] - 2026-11-23
+
+### Added
+- **`core.safedel._linkkinds`, one catalogue of link and reparse-point kinds.** For symlinks, junctions, WSL symlinks, app execution aliases, cloud (OneDrive) placeholders, deduplicated files and unknown kinds it says whether the target can be read, whether the contents are safe to read, and whether the entry is a link to move as is. Unknown kinds fail safe. Standard library only; it never follows a link. It lives in safedel for now and is meant to move into a DazzleLib library.
+
+### Fixed
+- **Copy-first no longer reads what it must not.** Deleting an online-only OneDrive file with copy-first on would have downloaded it to make the extra copy; deleting an app execution alias would have been refused because it cannot be opened. Copy-first now skips such an item with a warning, and the item is moved into the trash as is.
+
 ## [0.10.52-alpha] - 2026-11-23
 
 ### Fixed

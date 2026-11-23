@@ -825,8 +825,12 @@ class TrashStore:
                     not_staged += 1
                     save("staging")
                     continue
-                record["path"] = "copy-first/" + item.staged_name
-                entry.copy_first = record
+                if record.get("skipped"):
+                    warnings.append(f"copy-first skipped for {item.path}: "
+                                    f"{record['skipped']}; it is moved into the trash as is")
+                else:
+                    record["path"] = "copy-first/" + item.staged_name
+                    entry.copy_first = record
 
             # Stage to trash
             if item.metadata_only and c.file_type != FileType.JUNCTION:

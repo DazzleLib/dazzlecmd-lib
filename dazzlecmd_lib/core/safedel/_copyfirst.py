@@ -258,6 +258,15 @@ def copy_first(path: str, dest: str, is_dir: bool) -> Dict[str, Any]:
     """
     if os.path.lexists(dest):
         raise OSError("copy-first destination already exists: %s" % dest)
+    if not is_dir:
+        # 0.10.53: never read what must not be read. An online-only (cloud)
+        # file would download, an app execution alias cannot be opened, and an
+        # unknown reparse point is not ours to read. The item still moves into
+        # the trash by rename, untouched; only the extra copy is skipped.
+        from ._linkkinds import describe
+        kind = describe(path)
+        if kind is not None and not kind.contents_safe and not kind.node_is_dir:
+            return {"skipped": kind.note(), "kind": kind.kind}
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     links: List[Dict[str, str]] = []
     try:

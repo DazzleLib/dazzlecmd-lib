@@ -8,6 +8,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 This repository is the standalone home of the library, extracted from the dazzlecmd monorepo at v0.8.55 (2026-06-24). Commit history through 0.8.55 lives in the [dazzlecmd](https://github.com/DazzleTools/dazzlecmd) repository's git log (under `packages/dazzlecmd-lib/`); this CHANGELOG and all subsequent history continue here.
 
+## [0.10.52-alpha] - 2026-11-23
+
+### Fixed
+- **A folder holding a WSL symlink could not be deleted with copy-first on.** Copy-first records each link inside a folder by reading its target; for a WSL symlink (and other reparse points that are not symlinks or junctions) Python raises `ValueError`, which was not expected, so the copy, and the whole delete, was refused. Such a link is now recorded with its reparse tag and not copied, like every other link; it moves with its folder untouched. A Python virtual environment made under WSL is the common case.
+- **A copy-first failure now names the file inside the folder that failed**, instead of only the folder, and says "copy-first failed for" once instead of twice.
+
 ## [0.10.51-alpha] - 2026-11-20
 
 The two known issues of 0.10.50 that were safedel's own.

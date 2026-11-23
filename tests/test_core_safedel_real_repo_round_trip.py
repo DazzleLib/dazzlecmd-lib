@@ -222,6 +222,72 @@ def test_a_cleanup_that_still_fails_is_reported_not_swallowed(tmp_path, monkeypa
     assert _copyfirst._discard(str(partial)) == str(partial)
 
 
+def test_copy_first_tolerates_a_link_whose_target_cannot_be_read(tmp_path, monkeypatch, capsys):
+    """Found 2026-11-22: a WSL symlink (tag 0xA000001D) inside a folder made
+    os.readlink raise ValueError, which aborted copy-first and refused the whole
+    delete. Simulated here by making readlink raise ValueError for one link."""
+    from dazzlecmd_lib.core.safedel import _copyfirst
+    src = tmp_path / "work" / "venv"
+    (src / "bin").mkdir(parents=True)
+    (src / "bin" / "activate").write_text("echo hi")
+    odd = src / "bin" / "python3"
+    try:
+        os.symlink(str(src / "bin" / "activate"), str(odd))
+    except (OSError, NotImplementedError):
+        pytest.skip("creating a symlink needs a privilege this account lacks")
+    real = _copyfirst.os.readlink
+
+    def readlink(p, *a, **k):
+        if str(p).endswith("python3"):
+            raise ValueError("not a symbolic link")
+        return real(p, *a, **k)
+    monkeypatch.setattr(_copyfirst.os, "readlink", readlink)
+
+    store = _store(tmp_path)
+    result = store.trash([str(src)], copy_first=True, copy_first_max=10 ** 9)
+    assert result.success, result.errors
+    record = result.entries[0].copy_first
+    assert any(l["path"] == "bin/python3" for l in record.get("links_not_copied", []))
+
+    monkeypatch.setattr(_copyfirst.os, "readlink", real)
+    assert sd.recover_folder(store, result.folder_name) == 0, capsys.readouterr().out
+    assert os.path.islink(odd)                                     # the link came back as a link
+
+
+def test_a_copy_first_failure_names_the_file_and_says_it_once(tmp_path, monkeypatch):
+    from dazzlecmd_lib.core.safedel import _copyfirst
+    src = tmp_path / "work" / "box"
+    src.mkdir(parents=True)
+    (src / "bad.txt").write_text("x")
+
+    def boom(p):
+        raise OSError("simulated read error")
+    monkeypatch.setattr(_copyfirst, "_sha256", boom)
+    result = _store(tmp_path).trash([str(src)], copy_first=True, copy_first_max=10 ** 9)
+
+    assert not result.success
+    text = " ".join(str(e) for e in result.errors)
+    assert "bad.txt" in text                                       # the failing file is named
+    assert text.count("copy-first failed for") == 1                # the prefix appears once
+
+
+def test_an_unexpected_error_on_a_single_file_is_reported_once(tmp_path, monkeypatch):
+    """The original doubled message: a non-OSError (there, ValueError) got the
+    'copy-first failed for' prefix in copy_first and again from the store."""
+    from dazzlecmd_lib.core.safedel import _copyfirst
+    f = tmp_path / "work" / "one.txt"
+    f.parent.mkdir(parents=True)
+    f.write_text("x")
+
+    def odd(p):
+        raise ValueError("unexpected")
+    monkeypatch.setattr(_copyfirst, "_sha256", odd)
+    result = _store(tmp_path).trash([str(f)], copy_first=True, copy_first_max=10 ** 9)
+
+    assert not result.success
+    assert " ".join(str(e) for e in result.errors).count("copy-first failed for") == 1
+
+
 def test_list_shows_a_folders_contents_size_not_its_entry_size(tmp_path, capsys):
     src = tmp_path / "work"
     src.mkdir()

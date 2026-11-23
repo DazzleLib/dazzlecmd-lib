@@ -190,23 +190,15 @@ def _copy_tree(src: str, dst: str) -> Tuple[int, int, List[Dict[str, str]]]:
     while stack:
         s_dir, d_dir, rel = stack.pop()
         for entry in os.scandir(s_dir):
-            s_path = entry.path
-            d_path = os.path.join(d_dir, entry.name)
-            r_path = (rel + "/" + entry.name) if rel else entry.name
-            st = entry.stat(follow_symlinks=False)
-            if _is_link(st):
-                try:
-                    target = os.readlink(s_path)
-                except (OSError, NotImplementedError):
-                    target = ""
-                links.append({"path": r_path, "target": target})
-            elif stat.S_ISDIR(st.st_mode):
-                os.mkdir(d_path)
-                stack.append((s_path, d_path, r_path))
-            else:
-                shutil.copy2(s_path, d_path)
-                if _sha256(s_path) != _sha256(d_path):
-                    raise OSError("copy differs from the original: %s" % s_path)
+            try:
+                st = _copy_one_entry(entry, d_dir, rel, stack, links)
+            except _ItemFailed:
+                raise
+            except Exception as exc:
+                # Name the item inside the folder that failed (0.10.52): the
+                # error used to name only the folder.
+                raise _ItemFailed("%s: %s" % (entry.path, exc))
+            if st is not None:
                 files += 1
                 total += st.st_size
         try:
@@ -214,6 +206,44 @@ def _copy_tree(src: str, dst: str) -> Tuple[int, int, List[Dict[str, str]]]:
         except OSError:
             pass   # folder times on the copy are best effort
     return files, total, links
+
+
+class _ItemFailed(OSError):
+    """copy-first failed on one named item inside a folder."""
+
+
+def _copy_one_entry(entry, d_dir, rel, stack, links):
+    """Copy (or record) one directory entry; returns its stat when a file was
+    copied and verified, else None."""
+    s_path = entry.path
+    d_path = os.path.join(d_dir, entry.name)
+    r_path = (rel + "/" + entry.name) if rel else entry.name
+    st = entry.stat(follow_symlinks=False)
+    if _is_link(st):
+        record = {"path": r_path}
+        try:
+            record["target"] = os.readlink(s_path)
+        except (OSError, NotImplementedError, ValueError):
+            # ValueError is what Python raises for a reparse point that is not
+            # a symlink or junction -- a WSL symlink (tag 0xA000001D), for one.
+            # Until 0.10.52 it escaped and aborted the whole copy, so no folder
+            # holding one could be deleted with copy-first on (found 2026-11-22
+            # on a test folder). It is recorded and not copied, like every
+            # other link; the item itself moves with its folder, untouched.
+            record["target"] = ""
+            tag = getattr(st, "st_reparse_tag", 0)
+            if tag:
+                record["reparse_tag"] = "0x%08X" % tag
+        links.append(record)
+        return None
+    if stat.S_ISDIR(st.st_mode):
+        os.mkdir(d_path)
+        stack.append((s_path, d_path, r_path))
+        return None
+    shutil.copy2(s_path, d_path)
+    if _sha256(s_path) != _sha256(d_path):
+        raise OSError("copy differs from the original")
+    return st
 
 
 def copy_first(path: str, dest: str, is_dir: bool) -> Dict[str, Any]:
@@ -244,7 +274,9 @@ def copy_first(path: str, dest: str, is_dir: bool) -> Dict[str, Any]:
                 "; the partial copy could not be removed and is still at %s" % leftover)
         if isinstance(exc, OSError) and not note:
             raise
-        raise OSError("copy-first failed for %s: %s%s" % (path, exc, note))
+        # The caller adds "copy-first failed for <path>"; adding it here too
+        # printed it twice (fixed 0.10.52).
+        raise OSError("%s%s" % (exc, note))
     record = {"algorithm": "SHA256", "files": files, "bytes": total,
               "verified": True}
     if links:

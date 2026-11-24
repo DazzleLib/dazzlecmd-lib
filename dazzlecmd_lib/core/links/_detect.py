@@ -615,7 +615,10 @@ def _safe_readlink(path):
     """Read link target, returning None on failure."""
     try:
         return os.readlink(path)
-    except OSError:
+    except (OSError, ValueError, NotImplementedError):
+        # ValueError: a reparse point that is not a symlink or junction (a WSL
+        # symlink, an app alias, a cloud placeholder) has no readable target.
+        # _is_junction_win can guess "junction" for one it cannot read.
         return None
 
 

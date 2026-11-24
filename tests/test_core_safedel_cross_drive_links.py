@@ -135,6 +135,31 @@ def test_recovering_it_across_drives_recreates_the_link(tmp_path, monkeypatch, s
     assert _precious_intact(precious)                        # ... without reaching through its link
 
 
+def test_a_lone_directory_link_staged_and_recovered_across_drives_stays_a_link(
+        tmp_path, monkeypatch, shape):
+    """The link itself is the item (not a folder holding one). Staging and
+    recovery decide "copy as a folder?" with isdir-and-not-islink, which is
+    True for a junction; this pins that the link still comes back as a link
+    and its target is never copied or removed. Found by the 2026-11-23
+    done-before pass after the readlink fixes."""
+    work, precious = shape
+    link = work / "private"
+    _cross_device(monkeypatch, _platform, tmp_path / "src")
+    store = _store_in(tmp_path)
+    result = store.trash([str(link)])
+    assert result.success, result.errors
+    assert not os.path.lexists(link)
+    assert _precious_intact(precious)
+    _cross_device(monkeypatch, _recover, tmp_path / "trash")
+
+    rc = sd.recover_folder(store, result.folder_name)
+
+    assert rc == 0
+    assert _is_link(link)
+    assert os.path.samefile(link / "notes.md", precious / "notes.md")
+    assert _precious_intact(precious)
+
+
 def test_on_one_drive_the_link_travels_as_a_link_both_ways(tmp_path, shape):
     work, precious = shape
     store = _store_in(tmp_path)

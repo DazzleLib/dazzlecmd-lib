@@ -8,6 +8,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions use [Se
 
 This repository is the standalone home of the library, extracted from the dazzlecmd monorepo at v0.8.55 (2026-06-24). Commit history through 0.8.55 lives in the [dazzlecmd](https://github.com/DazzleTools/dazzlecmd) repository's git log (under `packages/dazzlecmd-lib/`); this CHANGELOG and all subsequent history continue here.
 
+## [0.10.54-alpha] - 2026-11-23
+
+### Fixed
+- **Reading a link's target no longer crashes on a WSL symlink, an app execution alias or a cloud (OneDrive) entry.** `core.links.get_link_target` treated any reparse point as a link, and the link scanner can take one it cannot read for a junction; both then read the target with `os.readlink`, which raises `ValueError` for these kinds, and only `OSError` was caught. A tool folder of one of these kinds now reports no target instead of raising. Same fault as safedel's copy-first in 0.10.52.
+
+### Tests
+- `tests/test_core_links_foreign_reparse.py` (5; 4 fail on 0.10.53). A lone directory link (a junction on Windows) deleted and recovered across drives comes back as a link with its target untouched.
+
 ## [0.10.53-alpha] - 2026-11-23
 
 ### Added

@@ -99,7 +99,9 @@ def get_link_target(tool_dir):
         return None
     try:
         return os.readlink(tool_dir)
-    except OSError:
+    except (OSError, ValueError, NotImplementedError):
+        # ValueError: a reparse point that is not a symlink or junction (a WSL
+        # symlink, an app alias, a cloud placeholder) has no readable target.
         return None
 
 
